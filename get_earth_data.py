@@ -1,20 +1,20 @@
 import ee
+from loguru import logger
 
 ########################################################
 # TO AUTHENTICATE EARTH ENGINE IN TERMINAL:
 # > earthengine authenticate --auth_mode=gcloud --force
 ########################################################
 
-# Initialize Earth Engine
 ee.Initialize(project='pivotal-stanford')
 
-# Define your area of interest in California
+# Define your area of interest in California:
 
 # San Francisco Bay Area - north, mostly water
 # roi = ee.Geometry.Rectangle([-122.5, 37.7, -122.3, 37.9])
 # Folsom/Placerville area - foothills, no large water bodies
 # roi = ee.Geometry.Rectangle([-121.0, 38.6, -120.8, 38.75])
-#roi = ee.Geometry.Rectangle([-120.85, 38.70, -120.845, 38.705])
+# roi = ee.Geometry.Rectangle([-120.85, 38.70, -120.845, 38.705])
 roi = ee.Geometry.Rectangle([-121.765, 38.540, -121.755, 38.550])  # ~1km x 1km
 
 # Get latest NAIP imagery (1m resolution RGB + NIR)
@@ -23,8 +23,7 @@ naip = ee.ImageCollection('USDA/NAIP/DOQQ') \
     .filterDate('2018-01-01', '2024-12-31') \
     .sort('system:time_start', False) \
     .first()
-
-print(f"NAIP image date: {naip.date().format('YYYY-MM-dd').getInfo()}")
+#print(f"NAIP image date: {naip.date().format('YYYY-MM-dd').getInfo()}")
 
 # Select RGB bands (NAIP also has NIR if you want it)
 rgb = naip.select(['R', 'G', 'B'])
@@ -61,7 +60,5 @@ task_dem = ee.batch.Export.image.toDrive(
 task_rgb.start()
 task_dem.start()
 
-print("Export tasks started!")
-
-print("Export tasks started. Check your Google Earth Engine Tasks tab.")
-print("Files will be saved to your Google Drive in the 'EarthEngine' folder.")
+logger.info("Export tasks started. Check your Google Earth Engine Tasks tab.")
+logger.info("Files will be saved to your Google Drive in the 'EarthEngine' folder.")

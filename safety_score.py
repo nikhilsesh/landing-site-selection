@@ -1,25 +1,19 @@
 import rasterio
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
+from loguru import logger
+#import matplotlib.pyplot as plt
 
-def compute_strike(elevation, transform, crs=None):
+def compute_strike_dip(elevation, transform):
     """
-    Compute per-pixel strike, dip, and dip direction from a DEM.
+    Compute per-pixel strike, dip, and dip direction from a DEM. Assumes north-up imagery.
 
     - strike: azimuth (degrees, 0-360) of the horizontal line on the plane
     - dip: angle from horizontal (degrees, 0-90)
     - dip_direction: azimuth (degrees, 0-360) of steepest descent
-
-    Assumes north-up imagery (no rotation in the transform). NaNs propagate.
-    If CRS is geographic (degrees), derivatives are scaled to meters before
-    computing dip and directions so angles are physically meaningful.
+    
     """
-    # Handle masked arrays by promoting to ndarray with NaNs
-    if np.ma.isMaskedArray(elevation):
-        z = elevation.filled(np.nan)
-    else:
-        z = np.asarray(elevation)
+    z = np.asarray(elevation)
 
     dx = transform.a
     dy = abs(transform.e)
@@ -28,7 +22,7 @@ def compute_strike(elevation, transform, crs=None):
     grad_row, grad_col = np.gradient(z, dy, dx)
 
     # Convert to derivatives in cardinal directions (north/east)
-    dz_dx_east = grad_col
+    dz_dx_east = grad_col 
     dz_dy_north = -grad_row
 
     rows = z.shape[0]
@@ -62,30 +56,24 @@ def compute_strike(elevation, transform, crs=None):
 
 def compute_variance(elevation, window_size=3, min_valid_fraction=0.5, pad_mode="reflect"):
     """
-    Compute local elevation variance over a square moving window.
+    Compute local elevation variance over a square moving window. Returns an array of shape
+    equal to elevation with per-pixel variance.
 
     - window_size: odd integer >= 1 defining the side length of the window
     - min_valid_fraction: required fraction of finite pixels in the window to emit a value
       (otherwise the output is NaN). Set to 0.0 to always compute if any valid pixels exist.
     - pad_mode: numpy pad mode for borders (e.g., "reflect", "edge", "constant")
 
-    NaNs in the input are treated as missing data and excluded from statistics.
-    Returns an array of shape equal to elevation with per-pixel variance.
     """
-    if np.ma.isMaskedArray(elevation):
-        z = elevation.filled(np.nan)
-    else:
-        z = np.asarray(elevation)
+    z = np.asarray(elevation)
 
     if window_size < 1 or (window_size % 2) == 0:
         raise ValueError("window_size must be an odd integer >= 1")
 
+    # replace NaNs with 0s
     z = z.astype(np.float64, copy=False)
     valid_mask = np.isfinite(z)
-
-    # Replace NaNs with 0s for sum accumulation; track counts separately
     z = np.where(valid_mask, z, 0.0)
-    z2 = z * z
 
     pad = window_size // 2
 
@@ -97,7 +85,7 @@ def compute_variance(elevation, window_size=3, min_valid_fraction=0.5, pad_mode=
         return S[window_size:, window_size:] - S[:-window_size, window_size:] - S[window_size:, :-window_size] + S[:-window_size, :-window_size]
 
     sum_x  = _box_sum(z)
-    sum_x2 = _box_sum(z2)
+    sum_x2 = _box_sum(z*z)
     count  = _box_sum(valid_mask.astype(np.float64))
 
     with np.errstate(invalid="ignore", divide="ignore"):
@@ -119,34 +107,31 @@ def compute_safety_score(dip_deg, var, a=5, b=1):
     """
     return  - (a*dip_deg + b*var)
 
-################################################################################
-# Loading geospatial data
-################################################################################
+def compute_safety_map(dem_path, output_path='results/davis_safety_score.png'):
+    logger.info("=" * 60)
+    logger.info("Computing safety score from DEM data")
+    logger.info("=" * 60)
+    
+    with rasterio.open(dem_path) as src:
+        subset = src.read(1)
+        strike_deg, dip_deg, dip_dir_deg = compute_strike_dip(subset, src.transform)
+        var = compute_variance(subset)
+        safety_score = compute_safety_score(dip_deg, var)
+    
+    # normalize safety score to 0-255 range
+    safety_score_min = np.nanmin(safety_score)
+    safety_score_max = np.nanmax(safety_score)
+    safety_score_normalized = ((safety_score - safety_score_min) / (safety_score_max - safety_score_min + 1e-8) * 255).astype(np.uint8)
+    
+    cv2.imwrite(output_path, safety_score_normalized)
+    logger.info(f"Saved safety score map to: {output_path}")
+    
+    return safety_score
 
-with rasterio.open("dem_maps/davis_dem.tif") as src:
-    subset = src.read(1)
-    strike_deg, dip_deg, dip_dir_deg = compute_strike(subset, src.transform, src.crs)
-    var = compute_variance(subset)
-    safety_score = compute_safety_score(dip_deg, var)
-    left, bottom, right, top = src.bounds
-
-################################################################################
-# Plotting safety metrics
-################################################################################
-
-# Normalize safety score to 0-255 range
-safety_score_min = np.nanmin(safety_score)
-safety_score_max = np.nanmax(safety_score)
-safety_score_normalized = ((safety_score - safety_score_min) / (safety_score_max - safety_score_min + 1e-8) * 255).astype(np.uint8)
-
-output_path = 'results/davis_safety_score.png'
-cv2.imwrite(output_path, safety_score_normalized)
-
-plt.tight_layout()
-plt.figure(figsize=(10, 6))
-plt.imshow(subset, cmap="terrain", extent=(left, right, bottom, top))
-plt.axis('off')
-plt.savefig("davis_dem.png", dpi=300, bbox_inches="tight", pad_inches=0)
+if __name__ == "__main__":
+    dem_path = 'dem_maps/davis_dem.tif'
+    output_path = 'results/davis_safety_score.png'
+    compute_safety_map(dem_path, output_path)
 
 # plt.figure(figsize=(10, 6))
 # plt.imshow(dip_deg, cmap="viridis", extent=(left, right, bottom, top))
