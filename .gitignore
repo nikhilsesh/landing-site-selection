@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
