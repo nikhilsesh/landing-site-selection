@@ -6,6 +6,7 @@ from pointcloud import heightmap_to_points, crop_points_xy, add_gaussian_noise
 from transforms import so3_from_euler, make_T, invert_T, apply_T, rotation_angle_deg
 from icp import icp_point_to_point
 from viz import plot_heightmap, plot_xy_overlay
+from safety_score import compute_safety_map
 
 
 # =========================
@@ -110,6 +111,7 @@ def build_initial_guess():
 def main():
     # --- Offline DEM-like map ---
     X, Y, Z = build_terrain()
+    safety_map = compute_safety_map(X, Y, Z)
     target = heightmap_to_points(X, Y, Z, stride=TARGET_STRIDE)
 
     # --- Build an "online LiDAR scan": crop subset, transform into LiDAR frame, add noise ---
@@ -152,14 +154,17 @@ def main():
 
     # --- Plotting ---
     plot_heightmap(X, Y, Z, title="Target / offline DEM (synthetic)")
+    plt.savefig('./project_scaffold/figures/heightmap.png', dpi=300)
 
     tgt_vis = target[::DOWNSAMPLE_VIS_TARGET]
     src_vis = source[::DOWNSAMPLE_VIS_SOURCE]
     plot_xy_overlay(tgt_vis, src_vis, title="Before ICP (different frames)")
+    plt.savefig('./project_scaffold/figures/before_icp.png', dpi=300)
 
     source_aligned = apply_T(source, T_est)
     src_aligned_vis = source_aligned[::DOWNSAMPLE_VIS_SOURCE]
     plot_xy_overlay(tgt_vis, src_aligned_vis, title="After ICP (aligned)")
+    plt.savefig('./project_scaffold/figures/after_icp.png', dpi=300)
 
     plt.show()  # blocks only once, at the end
 

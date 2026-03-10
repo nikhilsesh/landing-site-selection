@@ -1,7 +1,5 @@
 import numpy as np
 
-import numpy as np
-
 def generate_height_field_fractal(
     nx: int, ny: int,
     size_x: float, size_y: float,

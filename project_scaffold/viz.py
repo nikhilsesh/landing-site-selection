@@ -1,6 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Computer Modern Roman"],
+    "axes.facecolor": "none",
+    "figure.facecolor": "none",
+    "savefig.transparent": True,
+})
+
 def show_nonblocking(pause=0.001):
     plt.show(block=False)
     plt.pause(pause)  # lets the GUI event loop update
