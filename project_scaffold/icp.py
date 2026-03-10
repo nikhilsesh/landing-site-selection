@@ -78,6 +78,10 @@ def icp_point_to_point(
     prev_rmse = None
     history = []
 
+    Sigma = np.eye(6) * 1e6          # default: very uncertain (ICP failure)
+    last_src_corr = None
+    last_tgt_corr = None
+
     for it in range(max_iters):
         idx, d2 = nn(src, target)
 
@@ -120,7 +124,11 @@ def icp_point_to_point(
         Sigma = estimate_covariance(src_corr, tgt_corr, T)  
         uncertainty = np.trace(Sigma) # sum of variance in all 6 DOF as a simple scalar uncertainty metric
 
-    return T, history, uncertainty
+    # compute covariance once, using final correspondences if we have them
+    if last_src_corr is not None:
+        Sigma = estimate_covariance(last_src_corr, last_tgt_corr, T)
+        
+    return T, history, Sigma
 
 def estimate_covariance(
     reading: np.ndarray,
