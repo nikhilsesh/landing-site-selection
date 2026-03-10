@@ -145,7 +145,7 @@ def main():
             # use the current ekf estimate as ICP init (same behavior as before)
             T_init = make_T(ekf.R, ekf.p)
 
-            T_wb_est_icp, _hist = icp_point_to_point(
+            T_wb_est_icp, _hist, R_icp = icp_point_to_point(
                 source=scan_b,
                 target=map_pts,
                 init_T=T_init,
@@ -157,7 +157,7 @@ def main():
             )
 
             # placeholder covariance and update only the ICP-enabled EKF
-            R_icp = icp_covariance_placeholder_6x6(T_wb_est_icp)
+            #R_icp = icp_covariance_placeholder_6x6(T_wb_est_icp)
             ekf.update_pose_se3(T_wb_meas=T_wb_est_icp, R_meas_6x6=R_icp)
 
             lidar_meas_xy.append(T_wb_est_icp[:2, 3].copy())
