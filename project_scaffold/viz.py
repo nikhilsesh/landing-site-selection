@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import colormaps
 
 plt.rcParams.update({
     "text.usetex": True,
@@ -66,5 +67,26 @@ def plot_3d_overlay(target_pts: np.ndarray, source_pts: np.ndarray, title="3D ov
     ax.set_title(title)
     ax.view_init(elev=elev, azim=azim)
     ax.legend()
+    plt.tight_layout()
+    show_nonblocking()
+
+def plot_safety_map(X, Y, safety_map, title="Safety score map"):
+    """
+    Plot normalized safety score map as heatmap.
+    """
+
+    plt.figure(figsize=(6, 5))
+    plt.imshow(
+        safety_map,
+        origin="lower",
+        extent=[X.min(), X.max(), Y.min(), Y.max()],
+        cmap=colormaps["RdYlGn_r"],
+        aspect="equal",
+        vmin=0,
+        vmax=1,
+    )
+    plt.xlabel("x (m)")
+    plt.ylabel("y (m)")
+    plt.title(title)
     plt.tight_layout()
     show_nonblocking()

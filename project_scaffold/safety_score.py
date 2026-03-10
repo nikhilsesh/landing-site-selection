@@ -68,21 +68,21 @@ def compute_safety_score(dip_deg, var, a=1, b=5):
     """
     return  - (a*dip_deg + b*var)
 
-def compute_safety_map(X, Y, Z, filepath='./project_scaffold/figures/safety_score.png'):
+def compute_safety_map(X, Y, Z):
     dx = X[0, 1] - X[0, 0]
     dy = Y[1, 0] - Y[0, 0]
 
-    # blur map so dip angle is less noisy
+    # blur map for dip angle is its less noisy
     Z_smooth = cv2.GaussianBlur(Z.astype(np.float32), (0, 0), sigmaX=3.0)
     dip_deg = compute_dip(Z_smooth, dx, dy)
+
     var = compute_variance(Z)
+    
     safety_score = compute_safety_score(dip_deg, var)
 
-    # normalize safety score to 0-255 range
+    # normalize safety score to 0-1 range
     safety_score_min = np.nanmin(safety_score)
     safety_score_max = np.nanmax(safety_score)
-    safety_score_normalized = ((safety_score - safety_score_min) / (safety_score_max - safety_score_min + 1e-8) * 255).astype(np.uint8)
+    safety_score_normalized = (safety_score - safety_score_min) / (safety_score_max - safety_score_min + 1e-8)
 
-    cv2.imwrite(filepath, safety_score_normalized)
-
-    return safety_score
+    return safety_score_normalized

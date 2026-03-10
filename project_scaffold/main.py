@@ -5,7 +5,7 @@ from terrain import generate_height_field, generate_height_field_fractal
 from pointcloud import heightmap_to_points, crop_points_xy, add_gaussian_noise
 from transforms import so3_from_euler, make_T, invert_T, apply_T, rotation_angle_deg
 from icp import icp_point_to_point
-from viz import plot_heightmap, plot_xy_overlay
+from viz import plot_heightmap, plot_xy_overlay, plot_safety_map
 from safety_score import compute_safety_map
 
 
@@ -158,6 +158,10 @@ def main():
     # --- Plotting ---
     plot_heightmap(X, Y, Z, title="Target / offline DEM (synthetic)")
     plt.savefig('./project_scaffold/figures/heightmap.png', dpi=300)
+
+    offline_safety_map = compute_safety_map(X, Y, Z)
+    plot_safety_map(X, Y, offline_safety_map, title="Offline safety score map")
+    plt.savefig('./project_scaffold/figures/offline_safety_map.png', dpi=300)
 
     tgt_vis = target[::DOWNSAMPLE_VIS_TARGET]
     src_vis = source[::DOWNSAMPLE_VIS_SOURCE]
