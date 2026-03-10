@@ -38,14 +38,14 @@ TARGET_STRIDE = 2
 # --- "LiDAR scan" construction ---
 CROP_XMIN, CROP_XMAX = 15.0, 65.0
 CROP_YMIN, CROP_YMAX = 10.0, 70.0
-SOURCE_NOISE_SIGMA = 0.05
+SOURCE_NOISE_SIGMA = 0.2
 SOURCE_NOISE_SEED = 0
 
 # ground-truth transform (world <- lidar)
-GT_ROLL_DEG = 2.5
-GT_PITCH_DEG = -1.5
-GT_YAW_DEG = 14.0
-GT_T = np.array([3.0, -2.5, 0.5])
+GT_ROLL_DEG = 0.5
+GT_PITCH_DEG = -0.5
+GT_YAW_DEG = 2.0
+GT_T = np.array([0.8, -0.6, 0.1])
 
 # --- ICP settings ---
 USE_INITIAL_GUESS = False
@@ -125,12 +125,14 @@ def main():
     T_gt_inv = invert_T(T_gt)                  # lidar <- world
 
     source = apply_T(src_world, T_gt_inv)      # points now in LiDAR frame
+
+    # simulate LiDAR sensor noise
     source = add_gaussian_noise(source, sigma=SOURCE_NOISE_SIGMA, seed=SOURCE_NOISE_SEED)
 
     # --- ICP: estimate world <- lidar ---
     init_T = build_initial_guess()
 
-    T_est, hist = icp_point_to_point(
+    T_est, hist, uncertainty = icp_point_to_point(
         source=source,
         target=target,
         init_T=init_T,
@@ -151,6 +153,7 @@ def main():
     trans_err = np.linalg.norm(dT[:3, 3])
     print(f"\nRotation error (deg): {rot_err:.4f}")
     print(f"Translation error (m): {trans_err:.4f}")
+    print(f"Uncertainty: {uncertainty:.6e}")
 
     # --- Plotting ---
     plot_heightmap(X, Y, Z, title="Target / offline DEM (synthetic)")
