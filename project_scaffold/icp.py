@@ -63,6 +63,7 @@ def icp_point_to_point(
     Returns:
       T (4x4): estimated transform such that source_aligned ~ target
       history: list of dicts with rmse, num_corr
+      Sigma (6x6): covariance of the estimated transform
     """
     assert source.shape[1] == 3 and target.shape[1] == 3
 
@@ -98,6 +99,9 @@ def icp_point_to_point(
                 print(f"ICP iter {it}: too few correspondences ({src_corr.shape[0]}), stopping.")
             break
 
+        last_src_corr = src_corr
+        last_tgt_corr = tgt_corr
+
         R, t = best_fit_transform_kabsch(src_corr, tgt_corr)
 
         dT = np.eye(4)
@@ -120,14 +124,12 @@ def icp_point_to_point(
             break
         prev_rmse = rmse
 
-        # compute covariance matrix at each ICP iteration
-        Sigma = estimate_covariance(src_corr, tgt_corr, T)  
-        uncertainty = np.trace(Sigma) # sum of variance in all 6 DOF as a simple scalar uncertainty metric
-
-    # compute covariance once, using final correspondences if we have them
-    if last_src_corr is not None:
+    if last_src_corr is not None and last_src_corr.shape[0] > 0:
         Sigma = estimate_covariance(last_src_corr, last_tgt_corr, T)
-        
+    else:
+        if verbose:
+            print("No valid correspondences found; returning default high covariance.")
+
     return T, history, Sigma
 
 def estimate_covariance(

@@ -117,6 +117,12 @@ def main():
     est_p_imu_only = np.zeros((len(t), 3))
     lidar_meas_xy = []
 
+    est_R_icp = np.zeros((len(t), 3, 3))
+    est_R_imu_only = np.zeros((len(t), 3, 3))
+
+    est_P_diag_icp = np.zeros((len(t), 15))
+    est_P_diag_imu_only = np.zeros((len(t), 15))
+
     next_lidar_t = 0.0
 
     for k in range(len(t)):
@@ -126,7 +132,12 @@ def main():
 
         # store poses
         est_p_icp[k] = ekf.p
+        est_R_icp[k] = ekf.R
         est_p_imu_only[k] = ekf_imu_only.p
+        est_R_imu_only[k] = ekf_imu_only.R
+
+        est_P_diag_icp[k] = np.diag(ekf.P)
+        est_P_diag_imu_only[k] = np.diag(ekf_imu_only.P)
 
         # LiDAR/ICP happens only for the ICP-enabled filter
         if t[k] + 1e-12 >= next_lidar_t:
@@ -172,6 +183,87 @@ def main():
         lp = np.asarray(lidar_meas_xy)
         plt.scatter(lp[:,0], lp[:,1], c='r', s=15, label="ICP pose meas")
     plt.axis("equal"); plt.xlabel("x"); plt.ylabel("y"); plt.legend(); plt.tight_layout()
+    plt.savefig('ekf_track.png', transparent=True, dpi=300, bbox_inches='tight')
+    plt.show()
+
+    # ========================
+    # --- ERROR PLOTTING (2x2 Grid) ---
+    # ========================
+
+    # Create a 2x2 subplot grid. `sharex=True` links the x-axes of plots in the same column.
+    fig, axs = plt.subplots(2, 2, figsize=(6, 6), sharex=True)
+    fig.suptitle("Filter Error with 95% Confidence Bounds")
+
+    # --- (Top Row) Position Error Calculations ---
+    pos_err_icp = np.linalg.norm(traj["p"] - est_p_icp, axis=1)
+    pos_err_imu_only = np.linalg.norm(traj["p"] - est_p_imu_only, axis=1)
+
+    pos_var_icp = est_P_diag_icp[:, 0:3]
+    pos_std_icp = np.sqrt(np.sum(pos_var_icp, axis=1))
+    pos_bound_icp = 2.0 * pos_std_icp
+
+    pos_var_imu_only = est_P_diag_imu_only[:, 0:3]
+    pos_std_imu_only = np.sqrt(np.sum(pos_var_imu_only, axis=1))
+    pos_bound_imu_only = 2.0 * pos_std_imu_only
+
+    # --- Plot 1 (Top-Left): Position Error (with ICP) ---
+    ax = axs[0, 0]
+    ax.plot(t, pos_err_icp, 'b-', label="Position Error")
+    ax.fill_between(t, 0, pos_bound_icp, color='b', alpha=0.2, label='2-sigma bound')
+    ax.set_title("Position Error (with ICP)")
+    ax.set_ylabel("Error (m)")
+    ax.set_ylim(0, 10)
+    ax.legend()
+    ax.grid(True)
+
+    # --- Plot 2 (Top-Right): Position Error (IMU-only) ---
+    ax = axs[0, 1]
+    ax.plot(t, pos_err_imu_only, 'g--', label="Position Error")
+    ax.fill_between(t, 0, pos_bound_imu_only, color='g', alpha=0.2, label='2-sigma bound')
+    ax.set_title("Position Error (IMU-only)")
+    ax.legend()
+    ax.grid(True)
+
+
+    # --- (Bottom Row) Rotation Error Calculations ---
+    R_err_icp = traj["R_wb"] @ est_R_icp.transpose(0, 2, 1)
+    angle_err_icp_rad = np.arccos(np.clip((np.trace(R_err_icp, axis1=1, axis2=2) - 1) / 2.0, -1.0, 1.0))
+
+    R_err_imu = traj["R_wb"] @ est_R_imu_only.transpose(0, 2, 1)
+    angle_err_imu_rad = np.arccos(np.clip((np.trace(R_err_imu, axis1=1, axis2=2) - 1) / 2.0, -1.0, 1.0))
+
+    rot_var_icp = est_P_diag_icp[:, 6:9]
+    rot_std_icp = np.sqrt(np.sum(rot_var_icp, axis=1))
+    rot_bound_icp = 2.0 * rot_std_icp
+
+    rot_var_imu_only = est_P_diag_imu_only[:, 6:9]
+    rot_std_imu_only = np.sqrt(np.sum(rot_var_imu_only, axis=1))
+    rot_bound_imu_only = 2.0 * rot_std_imu_only
+
+    # --- Plot 3 (Bottom-Left): Rotation Error (with ICP) ---
+    ax = axs[1, 0]
+    ax.plot(t, np.rad2deg(angle_err_icp_rad), 'b-', label="Rotation Error")
+    ax.fill_between(t, 0, np.rad2deg(rot_bound_icp), color='b', alpha=0.2, label='2-sigma bound')
+    ax.set_title("Rotation Error (with ICP)")
+    ax.set_ylabel("Error (deg)")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylim(0, 6)
+    ax.legend()
+    ax.grid(True)
+
+    # --- Plot 4 (Bottom-Right): Rotation Error (IMU-only) ---
+    ax = axs[1, 1]
+    ax.plot(t, np.rad2deg(angle_err_imu_rad), 'g--', label="Rotation Error")
+    ax.fill_between(t, 0, np.rad2deg(rot_bound_imu_only), color='g', alpha=0.2, label='2-sigma bound')
+    ax.set_title("Rotation Error (IMU-only)")
+    ax.set_xlabel("Time (s)")
+    ax.legend()
+    ax.grid(True)
+
+
+    # Adjust layout to prevent titles and labels from overlapping
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.savefig('filter_error.png', transparent=True, dpi=300, bbox_inches='tight')
     plt.show()
 
     # Print bias estimates for both
