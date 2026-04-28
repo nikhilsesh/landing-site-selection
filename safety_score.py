@@ -67,10 +67,12 @@ def compute_variance(elevation, window_size=3, min_valid_fraction=0.5, pad_mode=
     - pad_mode: numpy pad mode for borders (e.g., "reflect", "edge", "constant")
 
     Returns a masked array if input is masked, otherwise returns regular array.
+    
+    UPDATED: Now handles masked arrays from reprojected DEMs in projected CRS (UTM).
     """
     is_masked_input = np.ma.is_masked(elevation)
     
-    # Handle masked arrays properly
+    # Handle masked arrays properly (from rasterio with masked=True)
     if is_masked_input:
         z = np.ma.filled(elevation, np.nan)  # Replace masked values with NaN
     else:
@@ -213,7 +215,15 @@ def compute_safety_map(region, dem_path, output_path='results/davis_safety_score
         print(f"  Max: {dip_deg.max():.2f}°")
         print(f"  Mean: {dip_deg.mean():.2f}°")
 
-        var = compute_variance(elevation)
+        var = compute_variance(elevation, window_size=31)
+        
+        print(f"\nVariance statistics:")
+        print(f"  Min: {np.ma.min(var):.4f}")
+        print(f"  Max: {np.ma.max(var):.4f}")
+        print(f"  Mean: {np.ma.mean(var):.4f}")
+        print(f"  Median: {np.ma.median(var):.4f}")
+        print(f"  Data type: {var.dtype}")
+        
         safety_score = compute_safety_score(dip_deg, var)
     
     # normalize safety score to 0-255 range
@@ -249,11 +259,81 @@ def compute_safety_map(region, dem_path, output_path='results/davis_safety_score
     
     return safety_score
 
-region = 'norcoast4'
-dem_path = f'dem_maps/norcoast_dem.tif'
+# Function to output binary safety map based on safety score threshold of greater than -20
+# def compute_binary_safety_map(safety_score, threshold=-20,  dem_path=None, region=None):
+#     binary_map = (safety_score > threshold).astype(np.uint8) * 255
+
+#     # Generate plot of binary map and save to results folder
+#     plt.figure(figsize=(10, 6))
+#     plt.imshow(binary_map, cmap="gray")
+#     plt.title("Binary Safety Map")
+#     plt.xlabel("Longitude")
+#     plt.ylabel("Latitude")
+#     plt.savefig(f"results/{region}_binary_safety_map.png", dpi=300, bbox_inches="tight")
+
+#     # NEW: Save as GeoTIFF with proper georeferencing
+#     if dem_path:
+#         utm_dem_path = dem_path.replace('.tif', '_utm.tif')
+#         with rasterio.open(utm_dem_path) as src:
+#             profile = src.profile.copy()
+#             profile.update(
+#                 dtype=rasterio.uint8,
+#                 count=1,
+#                 compress='lzw'
+#             )
+            
+#             output_tif = f"results/{region}_binary_safety_map.tif"
+#             with rasterio.open(output_tif, 'w', **profile) as dst:
+#                 dst.write(binary_map.astype(np.uint8), 1)
+            
+#             print(f"Saved georeferenced binary map to: {output_tif}")
+
+#     return binary_map
+
+def compute_binary_safety_map(safety_score, threshold=-20, dem_path=None, region='norcoast5'):
+    binary_map = (safety_score > threshold).astype(np.uint8) * 255
+
+    # Generate plot of binary map and save to results folder
+    plt.figure(figsize=(10, 6))
+    plt.imshow(binary_map, cmap="gray")
+    plt.title("Binary Safety Map")
+    plt.xlabel("Longitude")
+    plt.ylabel("Latitude")
+    plt.savefig(f"results/{region}_binary_safety_map.png", dpi=300, bbox_inches="tight")
+    
+    # NEW: Save as GeoTIFF with proper georeferencing
+    if dem_path:
+        utm_dem_path = dem_path.replace('.tif', '_utm.tif')
+        with rasterio.open(utm_dem_path) as src:
+            profile = src.profile.copy()
+            profile.update(
+                dtype=rasterio.uint8,
+                count=1,
+                compress='lzw',
+                nodata=0  # Set nodata to 0 for uint8 (or use None if no nodata needed)
+            )
+            
+            output_tif = f"results/{region}_binary_safety_map.tif"
+            with rasterio.open(output_tif, 'w', **profile) as dst:
+                dst.write(binary_map.astype(np.uint8), 1)
+            
+            print(f"Saved georeferenced binary map to: {output_tif}")
+    
+    return binary_map
+
+# region = 'norcoast5'
+# dem_path = f'dem_maps/norcoast_dem.tif'
+# output_path = f'results/{region}_safety_score_norm.png'
+# print('initialized variables')
+# safety_score = compute_safety_map(region, dem_path, output_path)
+# binary_safety_map = compute_binary_safety_map(safety_score, threshold=-20)
+
+region = 'norcoast6'
+dem_path = f'dem_maps/norcoast_b23_dem.tif'
 output_path = f'results/{region}_safety_score_norm.png'
 print('initialized variables')
-compute_safety_map(region, dem_path, output_path)
+safety_score = compute_safety_map(region, dem_path, output_path)
+binary_safety_map = compute_binary_safety_map(safety_score, threshold=-20, dem_path=dem_path, region=region)  # Pass dem_path
 
 # if __name__ == "__main__":
     # dem_path = 'dem_maps/davis_dem.tif'

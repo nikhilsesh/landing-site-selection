@@ -15,3 +15,4 @@ wheels/
 
 # Large data files
 dem_maps/
+osm_data/
