@@ -6,7 +6,7 @@ from pointcloud import heightmap_to_points, crop_points_xy, add_gaussian_noise
 from transforms import so3_from_euler, make_T, invert_T, apply_T, rotation_angle_deg
 from icp import icp_point_to_point
 from viz import plot_heightmap, plot_xy_overlay, plot_safety_map
-from safety_score import compute_safety_map
+from safety_score_old import compute_safety_map
 
 
 # =========================

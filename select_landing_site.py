@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from scipy import ndimage
 from loguru import logger
 from satlas import compute_building_map
-from safety_score import compute_safety_map
+from safety_score_old import compute_safety_map
 
 # Generate segmentation and safety maps
 rgb_path = 'rgb_maps/davis_rgb.tif'
