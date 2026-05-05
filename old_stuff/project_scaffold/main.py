@@ -6,7 +6,7 @@ from old_stuff.project_scaffold.pointcloud import heightmap_to_points, crop_poin
 from old_stuff.project_scaffold.transforms import so3_from_euler, make_T, invert_T, apply_T, rotation_angle_deg
 from old_stuff.project_scaffold.icp import icp_point_to_point
 from old_stuff.project_scaffold.viz import plot_heightmap, plot_xy_overlay, plot_safety_map
-from old_stuff.safety_score_old import compute_safety_map
+from old_stuff.other_old_stuff.safety_score_old import compute_safety_map
 
 
 # =========================

@@ -877,6 +877,7 @@ dependencies = [
     { name = "numpy" },
     { name = "osmnx", version = "2.0.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "osmnx", version = "2.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "pandas" },
     { name = "rasterio", version = "1.4.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "rasterio", version = "1.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -894,6 +895,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.9" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "osmnx", specifier = ">=2.0.7" },
+    { name = "pandas", specifier = ">=2.3.3" },
     { name = "rasterio", specifier = ">=1.4.4" },
     { name = "scipy", specifier = ">=1.15.3" },
 ]

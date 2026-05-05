@@ -3,8 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import ndimage
 from loguru import logger
-from old_stuff.satlas import compute_building_map
-from old_stuff.safety_score_old import compute_safety_map
+from old_stuff.other_old_stuff.satlas import compute_building_map
+from old_stuff.other_old_stuff.safety_score_old import compute_safety_map
 
 # Generate segmentation and safety maps
 rgb_path = 'rgb_maps/davis_rgb.tif'
