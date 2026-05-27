@@ -16,6 +16,5 @@ wheels/
 # Large data and plot files
 dem_maps/
 osm_data/
-results/
-results_norcoast_b23/
+results*/
 valid_contour_plots_norcoast_b23/
