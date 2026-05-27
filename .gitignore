@@ -13,6 +13,9 @@ wheels/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# Large data files
+# Large data and plot files
 dem_maps/
 osm_data/
+results/
+results_norcoast_b23/
+valid_contour_plots_norcoast_b23

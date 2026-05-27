@@ -345,7 +345,7 @@ def compute_safety_map(region, dem_path):
     # TRI
     plt.figure(figsize=(10, 6))
     plt.imshow(tri, cmap="viridis")
-    plt.colorbar(label="TRI (mean absolute elevation difference)")
+    plt.colorbar(label="TRI (m)")
     plt.title("Terrain Ruggedness Index (TRI)")
     plt.xlabel("Longitude")
     plt.ylabel("Latitude")
@@ -360,9 +360,9 @@ def compute_safety_map(region, dem_path):
     plt.ylabel("Latitude")
     plt.savefig(f"results/{region}_safety_score.png", dpi=300, bbox_inches="tight")
     
-    return safety_score
+    return dip_deg, var, tri, safety_score
 
-def compute_binary_safety_map(safety_score, threshold=-20, dem_path=None, region='norcoast5'):
+def compute_binary_safety_map(safety_score, threshold=-20, dem_path=None, region='norcoast5', type=None):
     binary_map = (safety_score > threshold).astype(np.uint8) * 255
 
     # Generate plot of binary map and save to results folder
@@ -371,7 +371,7 @@ def compute_binary_safety_map(safety_score, threshold=-20, dem_path=None, region
     plt.title("Binary Safety Map")
     plt.xlabel("Longitude")
     plt.ylabel("Latitude")
-    plt.savefig(f"results/{region}_binary_safety_map.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"results/{region}_{type}_binary_safety_map.png", dpi=300, bbox_inches="tight")
     
     # NEW: Save as GeoTIFF with proper georeferencing
     if dem_path:
@@ -393,12 +393,17 @@ def compute_binary_safety_map(safety_score, threshold=-20, dem_path=None, region
     
     return binary_map
 
-region = 'norcoast8'
-dem_path = f'dem_maps/norcoast_b23_dem.tif'
+# region = 'norcoast8'
+# dem_path = f'dem_maps/norcoast_b23_dem.tif'
+region = 'alameda_b21_x59y418'
+dem_path = f'dem_maps/{region}_dem.tif'
 output_path = f'results/{region}_safety_score_norm.png'
 print('initialized variables')
-safety_score = compute_safety_map(region, dem_path)
-binary_safety_map = compute_binary_safety_map(safety_score, threshold=-20, dem_path=dem_path, region=region)  # Pass dem_path
+dip_deg, var, tri, safety_score = compute_safety_map(region, dem_path)
+compute_binary_safety_map(safety_score, threshold=-20, dem_path=dem_path, region=region, type='norm')  # Pass dem_path
+compute_binary_safety_map(dip_deg, threshold=4, region=region, type='dip')
+compute_binary_safety_map(var, threshold=20, region=region, type='var')
+compute_binary_safety_map(tri, threshold=1, region=region, type='tri') 
 
 # if __name__ == "__main__":
     # dem_path = 'dem_maps/davis_dem.tif'

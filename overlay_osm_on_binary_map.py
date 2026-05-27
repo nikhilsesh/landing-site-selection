@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
+import cv2
 
 def load_and_reproject_osm_data(osm_path, target_crs='EPSG:32610'):
     """Load OSM data and reproject to match DEM CRS"""
@@ -403,7 +404,7 @@ def analyze_landing_suitability(region='norcoast5',
     print(f"Obstacle-free safe areas: {np.sum(landable)} pixels ({100*np.sum(landable)/binary_safety.size:.2f}%)")
     print(f"Reduction due to obstacles: {100*(1 - np.sum(landable)/max(np.sum(binary_safety), 1)):.2f}%")
 
-    # Create visualization
+    # # Create visualization
     fig, axes = plt.subplots(2, 2, figsize=(14, 12))
     
     # Calculate extent in geographic coordinates (lon, lat) - USE CONVERTED BOUNDS
@@ -454,50 +455,6 @@ def analyze_landing_suitability(region='norcoast5',
     plt.savefig(f'results/{region}_landing_analysis.png', dpi=300, bbox_inches='tight')
     print(f"\nSaved visualization to: results/{region}_landing_analysis.png")
     
-    # # Create visualization
-    # fig, axes = plt.subplots(2, 2, figsize=(14, 12))
-    
-    # # 1. Binary safety map
-    # axes[0, 0].imshow(binary_safety, cmap='gray')
-    # axes[0, 0].set_title(f'Terrain Safety\n({100*np.sum(binary_safety)/binary_safety.size:.2f}% safe)')
-    # axes[0, 0].set_xlabel('Longitude (pixels)')
-    # axes[0, 0].set_ylabel('Latitude (pixels)')
-    
-    # # 2. All obstacles
-    # axes[0, 1].imshow(obstacles_raster, cmap='Reds', alpha=0.7)
-    # axes[0, 1].set_title(f'All Obstacles\n({100*np.sum(obstacles_raster)/binary_safety.size:.2f}% coverage)')
-    # axes[0, 1].set_xlabel('Longitude (pixels)')
-    # axes[0, 1].set_ylabel('Latitude (pixels)')
-    
-    # # 3. Overlay
-    # overlay = np.zeros((*shape, 3))
-    # overlay[binary_safety == 1] = [1, 1, 1]  # White for safe
-    # overlay[obstacles_raster == 1] = [1, 0, 0]  # Red for obstacles
-    # overlay[landable == 1] = [0, 1, 0]  # Green for landable
-    
-    # axes[1, 0].imshow(overlay)
-    # axes[1, 0].set_title('Overlay\n(White=Terrain Safe, Red=Obstacles, Green=Landable)')
-    # axes[1, 0].set_xlabel('Longitude (pixels)')
-    # axes[1, 0].set_ylabel('Latitude (pixels)')
-    
-    # # 4. Final landable areas
-    # axes[1, 1].imshow(landable, cmap='Greens')
-    # axes[1, 1].set_title(f'Landable Areas\n({100*np.sum(landable)/binary_safety.size:.2f}% suitable)')
-    # axes[1, 1].set_xlabel('Longitude (pixels)')
-    # axes[1, 1].set_ylabel('Latitude (pixels)')
-    
-    # # Add legend
-    # legend_elements = [
-    #     Patch(facecolor='white', edgecolor='black', label='Terrain-safe'),
-    #     Patch(facecolor='red', label='Obstacles'),
-    #     Patch(facecolor='green', label='Landable')
-    # ]
-    # fig.legend(handles=legend_elements, loc='lower center', ncol=3, bbox_to_anchor=(0.5, -0.02))
-    
-    # plt.tight_layout()
-    # plt.savefig(f'results/{region}_landing_analysis.png', dpi=300, bbox_inches='tight')
-    # print(f"\nSaved visualization to: results/{region}_landing_analysis.png")
-    
     # Save landable areas as GeoTIFF for GIS use
     landable_path = f'results/{region}_landable_areas.tif'
     with rasterio.open(binary_map_path) as src:
@@ -508,13 +465,53 @@ def analyze_landing_suitability(region='norcoast5',
             dst.write(landable.astype(np.uint8), 1)
     
     print(f"Saved landable areas raster to: {landable_path}")
+
+
+    # Filter landable area by minimum size of connected eligible voxels
+    # Ensure binary image is uint8 (0 or 255)
+    landable = landable.astype(np.uint8) * 255
+
+    # Find all connected components
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(landable, connectivity=4)
+
+    # stats columns: [x, y, width, height, area]
+    min_size = 6000 # minimum area of 15 m x 400 m = 6000 m^2
+    landable_filter = np.zeros_like(landable)
+
+    count = 0
+    for i in range(1, num_labels):  # Start from 1 to skip background (label 0)
+        if stats[i, cv2.CC_STAT_AREA] >= min_size:
+            # print(stats[i]) # debugging
+            landable_filter[labels == i] = 255
+            count += 1
+
+    # Plot filtered landable areas
+    print(f"\nNumber of landable areas after cleaning: {count}")
+    plt.figure(figsize=(8, 6))
+    plt.imshow(landable_filter, cmap='Greens', extent=extent, aspect='auto')
+    plt.title(f'Filtered Landable Areas (min size {min_size} pixels)')
+    plt.xlabel('Longitude (degrees)')
+    plt.ylabel('Latitude (degrees)')
+    plt.ticklabel_format(useOffset=False, style='plain')
+    # plt.show()
+    plt.savefig(f'results/{region}_filtered_landable_areas.png', dpi=300, bbox_inches='tight')
+    print(f"\nSaved filtered landable areas visualization to: results/{region}_filtered_landable_areas.png")
+
+    # Save filtered landable areas as GeoTIFF
+    filtered_landable_path = f'results/{region}_filtered_landable_areas.tif'
+    with rasterio.open(binary_map_path) as src:
+        profile = src.profile.copy()
+        profile.update(dtype=rasterio.uint8, nodata=0)
+        
+        with rasterio.open(filtered_landable_path, 'w', **profile) as dst:
+            dst.write((landable_filter > 0).astype(np.uint8), 1)
     
     return landable, obstacles_raster, binary_safety
 
 if __name__ == "__main__":
     # Run the analysis
     landable, obstacles, safety = analyze_landing_suitability(
-        region='norcoast8',
+        region='alameda_b21_x59y418',
         buffer_buildings=5,
         buffer_power_lines=20,
         buffer_power_points=30,
