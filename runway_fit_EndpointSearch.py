@@ -60,7 +60,7 @@ class ParametricContour:
     """
     Represents a contour parametrized by arc length t ∈ [0, 1).
     """
-    def __init__(self, contour_points):
+    def __init__(self, contour_points, landable_map=None):
         """
         Parameters:
         -----------
@@ -103,6 +103,9 @@ class ParametricContour:
         self.interp_x = interp1d(t_extended, points_extended[:, 0], kind='linear')
         self.interp_y = interp1d(t_extended, points_extended[:, 1], kind='linear')
         
+        # Store landable map for rasterization checks
+        self.landable_map = landable_map
+
         # Store contour for point-in-polygon tests
         self.contour_cv = self.points.astype(np.int32)
     
@@ -124,36 +127,306 @@ class ParametricContour:
         y = self.interp_y(t_array)
         return np.column_stack([x, y])
     
-    def is_line_inside(self, t1, t2, n_samples=100):
+    # def is_line_inside(self, t1, t2, n_samples=100):
+    #     """
+    #     Check if the line segment from t1 to t2 stays inside the contour.
+        
+    #     Parameters:
+    #     -----------
+    #     t1, t2 : float
+    #         Parameter values for the two endpoints
+    #     n_samples : int
+    #         Number of points to sample along the line for checking
+        
+    #     Returns:
+    #     --------
+    #     bool : True if line is fully inside, False otherwise
+    #     """
+    #     p1 = self.get_point(t1)
+    #     p2 = self.get_point(t2)
+        
+    #     # Sample points along the line
+    #     alphas = np.linspace(0, 1, n_samples)
+    #     line_points = p1[np.newaxis, :] + alphas[:, np.newaxis] * (p2 - p1)[np.newaxis, :]
+        
+    #     # Check if all points are inside the contour
+    #     for point in line_points:
+    #         dist = cv2.pointPolygonTest(self.contour_cv, tuple(point), False)
+    #         if dist < 0:  # Point is outside
+    #             return False
+        
+    #     return True
+
+    # def is_line_inside(self, t1, t2, debug_plot=False, save_path=None):
+    #     """
+    #     Check if the line segment from t1 to t2 stays inside the contour.
+    #     Uses rasterization approach for pixel-accurate checking.
+
+    #     Parameters:
+    #     -----------
+    #     t1, t2 : float
+    #         Parameter values for the two endpoints
+    #     debug_plot : bool
+    #         If True, create a visualization showing runway and contour rasters
+    #     save_path : str, optional
+    #         Path to save debug plot (e.g., 'debug_runway_check.png')
+
+    #     Returns:
+    #     --------
+    #     bool : True if line is fully inside, False otherwise
+    #     """
+    #     p1 = self.get_point(t1)
+    #     p2 = self.get_point(t2)
+        
+    #     # Get integer pixel coordinates
+    #     x1, y1 = int(round(p1[0])), int(round(p1[1]))
+    #     x2, y2 = int(round(p2[0])), int(round(p2[1]))
+        
+    #     # Determine raster size
+    #     if self.landable_map is not None:
+    #         height, width = self.landable_map.shape
+    #         runway_raster = np.zeros((height, width), dtype=np.uint8)
+    #         contour_mask = self.landable_map.astype(np.uint8)
+    #     else:
+    #         # Fallback: estimate size from contour bounds
+    #         x_max = int(np.ceil(self.points[:, 0].max())) + 10
+    #         y_max = int(np.ceil(self.points[:, 1].max())) + 10
+    #         runway_raster = np.zeros((y_max, x_max), dtype=np.uint8)
+            
+    #         # Create contour mask
+    #         contour_mask = np.zeros((y_max, x_max), dtype=np.uint8)
+    #         cv2.fillPoly(contour_mask, [self.contour_cv], 1)
+        
+    #     # Draw the runway line (1 pixel thick)
+    #     cv2.line(runway_raster, (x1, y1), (x2, y2), 1, thickness=1)
+        
+    #     # Count total runway pixels
+    #     num_runway_pixels = np.sum(runway_raster > 0)
+        
+    #     # Count runway pixels inside the contour (Logical AND)
+    #     num_inside_pixels = np.sum((runway_raster > 0) & (contour_mask > 0))
+        
+    #     # Determine validity
+    #     is_valid = (num_runway_pixels == num_inside_pixels) and (num_runway_pixels > 0)
+        
+    #     # ========================================================================
+    #     # DEBUG VISUALIZATION
+    #     # ========================================================================
+    #     if debug_plot:
+    #         import matplotlib.pyplot as plt
+            
+    #         # Get bounding box for zoomed view
+    #         runway_coords = np.argwhere(runway_raster > 0)
+    #         if len(runway_coords) > 0:
+    #             row_min = max(0, runway_coords[:, 0].min() - 20)
+    #             row_max = min(height, runway_coords[:, 0].max() + 20)
+    #             col_min = max(0, runway_coords[:, 1].min() - 20)
+    #             col_max = min(width, runway_coords[:, 1].max() + 20)
+    #         else:
+    #             row_min, row_max = 0, height
+    #             col_min, col_max = 0, width
+            
+    #         # Zoom into region of interest
+    #         contour_zoom = contour_mask[row_min:row_max, col_min:col_max]
+    #         runway_zoom = runway_raster[row_min:row_max, col_min:col_max]
+            
+    #         # Create RGB composite for visualization
+    #         # Red channel: contour pixels only (not runway)
+    #         # Green channel: runway AND contour (valid pixels)
+    #         # Blue channel: runway pixels only (not in contour - INVALID)
+    #         rgb_composite = np.zeros((row_max - row_min, col_max - col_min, 3), dtype=np.uint8)
+            
+    #         # Contour only (white/gray background)
+    #         rgb_composite[:, :, 0] = contour_zoom * 100  # Red channel
+    #         rgb_composite[:, :, 1] = contour_zoom * 100  # Green channel
+    #         rgb_composite[:, :, 2] = contour_zoom * 100  # Blue channel
+            
+    #         # Runway pixels that are INSIDE contour (GREEN)
+    #         inside_mask = (runway_zoom > 0) & (contour_zoom > 0)
+    #         rgb_composite[inside_mask, 0] = 0      # No red
+    #         rgb_composite[inside_mask, 1] = 255    # Full green
+    #         rgb_composite[inside_mask, 2] = 0      # No blue
+            
+    #         # Runway pixels that are OUTSIDE contour (RED - BAD!)
+    #         outside_mask = (runway_zoom > 0) & (contour_zoom == 0)
+    #         rgb_composite[outside_mask, 0] = 255   # Full red
+    #         rgb_composite[outside_mask, 1] = 0     # No green
+    #         rgb_composite[outside_mask, 2] = 0     # No blue
+            
+    #         # Create figure
+    #         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+            
+    #         # Panel 1: Contour mask
+    #         axes[0].imshow(contour_zoom, cmap='gray')
+    #         axes[0].set_title('Contour Mask\n(Gray = Inside Contour)', fontsize=12, fontweight='bold')
+    #         axes[0].axis('off')
+            
+    #         # Panel 2: Runway raster
+    #         axes[1].imshow(runway_zoom, cmap='hot')
+    #         axes[1].set_title('Runway Raster\n(Yellow = Runway Pixels)', fontsize=12, fontweight='bold')
+    #         axes[1].axis('off')
+            
+    #         # Panel 3: Composite (with color legend)
+    #         axes[2].imshow(rgb_composite)
+    #         status_text = "VALID ✓" if is_valid else "INVALID ✗"
+    #         status_color = 'green' if is_valid else 'red'
+    #         axes[2].set_title(f'Runway ∧ Contour Check: {status_text}\n'
+    #                         f'Runway pixels: {num_runway_pixels}, Inside: {num_inside_pixels}',
+    #                         fontsize=12, fontweight='bold', color=status_color)
+    #         axes[2].axis('off')
+            
+    #         # Add color legend to composite panel
+    #         from matplotlib.patches import Patch
+    #         legend_elements = [
+    #             Patch(facecolor='gray', label='Contour interior'),
+    #             Patch(facecolor='green', label='Runway inside contour (VALID)'),
+    #             Patch(facecolor='red', label='Runway outside contour (INVALID)')
+    #         ]
+    #         axes[2].legend(handles=legend_elements, loc='upper right', fontsize=10)
+            
+    #         plt.tight_layout()
+            
+    #         # Save if path provided
+    #         if save_path:
+    #             plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    #             print(f"  Debug plot saved to: {save_path}")
+    #         else:
+    #             plt.show()
+            
+    #         plt.close()
+        
+    #     # ========================================================================
+        
+    #     return is_valid
+
+    def is_line_inside(self, t1, t2, debug_plot=False, save_path=None):
         """
         Check if the line segment from t1 to t2 stays inside the contour.
-        
-        Parameters:
-        -----------
-        t1, t2 : float
-            Parameter values for the two endpoints
-        n_samples : int
-            Number of points to sample along the line for checking
-        
-        Returns:
-        --------
-        bool : True if line is fully inside, False otherwise
+        Uses rasterization on a LOCAL bounding box (much faster).
         """
         p1 = self.get_point(t1)
         p2 = self.get_point(t2)
         
-        # Sample points along the line
-        alphas = np.linspace(0, 1, n_samples)
-        line_points = p1[np.newaxis, :] + alphas[:, np.newaxis] * (p2 - p1)[np.newaxis, :]
+        # Get integer pixel coordinates
+        x1, y1 = int(round(p1[0])), int(round(p1[1]))
+        x2, y2 = int(round(p2[0])), int(round(p2[1]))
         
-        # Check if all points are inside the contour
-        for point in line_points:
-            dist = cv2.pointPolygonTest(self.contour_cv, tuple(point), False)
-            if dist < 0:  # Point is outside
-                return False
+        # ===================================================================
+        # KEY OPTIMIZATION: Create small local bounding box instead of full image
+        # ===================================================================
+        padding = 5  # Small padding around the line
+        x_min = max(0, min(x1, x2) - padding)
+        x_max = max(x1, x2) + padding
+        y_min = max(0, min(y1, y2) - padding)
+        y_max = max(y1, y2) + padding
         
-        return True
-    
+        # Get dimensions of local box (MUCH smaller than full image!)
+        local_width = x_max - x_min + 1
+        local_height = y_max - y_min + 1
+        
+        # Create small local rasters
+        local_runway = np.zeros((local_height, local_width), dtype=np.uint8)
+        
+        # Translate line coordinates to local box coordinates
+        x1_local = x1 - x_min
+        y1_local = y1 - y_min
+        x2_local = x2 - x_min
+        y2_local = y2 - y_min
+        
+        # Draw line in local coordinates (FAST - only ~400 pixels, not millions!)
+        cv2.line(local_runway, (x1_local, y1_local), (x2_local, y2_local), 1, thickness=1)
+        
+        # Extract corresponding region from contour mask
+        if self.landable_map is not None:
+            # Clip to valid bounds
+            height_full, width_full = self.landable_map.shape
+            y_max = min(y_max, height_full - 1)
+            x_max = min(x_max, width_full - 1)
+            local_contour = self.landable_map[y_min:y_max+1, x_min:x_max+1].astype(np.uint8)
+        else:
+            # Create local contour mask (translate contour coordinates)
+            local_contour = np.zeros((local_height, local_width), dtype=np.uint8)
+            contour_translated = self.contour_cv - np.array([x_min, y_min])
+            cv2.fillPoly(local_contour, [contour_translated], 1)
+        
+        # Count runway pixels (FAST - only checking ~400 pixels!)
+        num_runway_pixels = np.sum(local_runway > 0)
+        
+        # Count runway pixels inside contour (FAST)
+        num_inside_pixels = np.sum((local_runway > 0) & (local_contour > 0))
+        
+        # Determine validity
+        is_valid = (num_runway_pixels == num_inside_pixels) and (num_runway_pixels > 0)
+        
+        # ========================================================================
+        # DEBUG VISUALIZATION (unchanged, but uses local arrays)
+        # ========================================================================
+        if debug_plot:
+            import matplotlib.pyplot as plt
+            
+            # Create RGB composite for visualization
+            rgb_composite = np.zeros((local_height, local_width, 3), dtype=np.uint8)
+            
+            # Contour only (gray background)
+            rgb_composite[:, :, 0] = local_contour * 100
+            rgb_composite[:, :, 1] = local_contour * 100
+            rgb_composite[:, :, 2] = local_contour * 100
+            
+            # Runway pixels that are INSIDE contour (GREEN)
+            inside_mask = (local_runway > 0) & (local_contour > 0)
+            rgb_composite[inside_mask, 0] = 0
+            rgb_composite[inside_mask, 1] = 255
+            rgb_composite[inside_mask, 2] = 0
+            
+            # Runway pixels that are OUTSIDE contour (RED - BAD!)
+            outside_mask = (local_runway > 0) & (local_contour == 0)
+            rgb_composite[outside_mask, 0] = 255
+            rgb_composite[outside_mask, 1] = 0
+            rgb_composite[outside_mask, 2] = 0
+            
+            # Create figure
+            fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+            
+            # Panel 1: Contour mask
+            axes[0].imshow(local_contour, cmap='gray')
+            axes[0].set_title('Contour Mask (Local)\n(Gray = Inside Contour)', fontsize=12, fontweight='bold')
+            axes[0].axis('off')
+            
+            # Panel 2: Runway raster
+            axes[1].imshow(local_runway, cmap='hot')
+            axes[1].set_title('Runway Raster (Local)\n(Yellow = Runway Pixels)', fontsize=12, fontweight='bold')
+            axes[1].axis('off')
+            
+            # Panel 3: Composite
+            axes[2].imshow(rgb_composite)
+            status_text = "VALID ✓" if is_valid else "INVALID ✗"
+            status_color = 'green' if is_valid else 'red'
+            axes[2].set_title(f'Runway ∧ Contour Check: {status_text}\n'
+                            f'Runway pixels: {num_runway_pixels}, Inside: {num_inside_pixels}',
+                            fontsize=12, fontweight='bold', color=status_color)
+            axes[2].axis('off')
+            
+            # Add color legend
+            from matplotlib.patches import Patch
+            legend_elements = [
+                Patch(facecolor='gray', label='Contour interior'),
+                Patch(facecolor='green', label='Runway inside contour (VALID)'),
+                Patch(facecolor='red', label='Runway outside contour (INVALID)')
+            ]
+            axes[2].legend(handles=legend_elements, loc='upper right', fontsize=10)
+            
+            plt.tight_layout()
+            
+            if save_path:
+                plt.savefig(save_path, dpi=150, bbox_inches='tight')
+                print(f"  Debug plot saved to: {save_path}")
+            else:
+                plt.show()
+            
+            plt.close()
+        
+        return is_valid
+        
     def line_length(self, t1, t2):
         """
         Compute Euclidean distance between points at t1 and t2.
@@ -194,8 +467,24 @@ def optimize_runway_for_contour(param_contour, min_length=400, pixel_size=1.0):
         if t2 <= t1:
             return 1e10
         
+        # DEBUGGING - RASTERIZED RUNWAY###############
+        # Check if line is inside WITH DEBUG FOR FIRST FEW EVALUATIONS
+        # if not hasattr(objective, 'eval_count'):
+        #     objective.eval_count = 0
+        # objective.eval_count += 1
+        
+        # # Only plot the first 3 evaluations to see what's happening
+        # if objective.eval_count <= -1:
+        #     save_path = f'debug/eval_{objective.eval_count}.png'
+        #     is_inside = param_contour.is_line_inside(t1, t2, debug_plot=True, save_path=save_path)
+        # else:
+        #     is_inside = param_contour.is_line_inside(t1, t2, debug_plot=False)
+        ###############################################
+
         # Check if line is inside
-        if not param_contour.is_line_inside(t1, t2, n_samples=50):
+        # print('Checking if line is inside')
+        # if not param_contour.is_line_inside(t1, t2, n_samples=50):
+        if not param_contour.is_line_inside(t1, t2, debug_plot=False):  # Remove n_samples parameter
             return 1e10  # Large penalty for invalid lines
         
         # Return negative length (we want to maximize length)
@@ -423,7 +712,8 @@ def find_optimal_runways_parametric(region='norcoast8',
         print(f"Contour {contour_idx + 1}/{num_contours}:")
         
         # Create parametric contour
-        param_contour = ParametricContour(contour)
+        # Create parametric contour WITH landable_map
+        param_contour = ParametricContour(contour, landable_map=landable_filtered)
         
         # Optimize runway placement
         runway = optimize_runway_for_contour(
@@ -1143,13 +1433,15 @@ def save_all_best_runways_geotiff(region, best_per_contour, landable_map, transf
 
 if __name__ == "__main__":
     # Configuration
-    region = 'alameda_b21_x59y418'
+    # region = 'alameda_b21_x59y418'
+    region = 'norcoast_b23'
     search_type = 'endpoint_search'
     runway_length = 400  # meters
     runway_width = 15    # meters
 
     output_dir = f'results/{search_type}'
     os.makedirs(output_dir, exist_ok=True)
+    os.makedirs('debug', exist_ok=True)
     
     # Run parametric optimization
     results = find_optimal_runways_parametric(

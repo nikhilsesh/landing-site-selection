@@ -17,4 +17,5 @@ wheels/
 dem_maps/
 osm_data/
 results*/
+debug*/
 valid_contour_plots_norcoast_b23/

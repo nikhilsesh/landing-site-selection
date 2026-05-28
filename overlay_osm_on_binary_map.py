@@ -511,7 +511,8 @@ def analyze_landing_suitability(region='norcoast5',
 if __name__ == "__main__":
     # Run the analysis
     landable, obstacles, safety = analyze_landing_suitability(
-        region='alameda_b21_x59y418',
+        # region='alameda_b21_x59y418',
+        region='norcoast_b23',
         buffer_buildings=5,
         buffer_power_lines=20,
         buffer_power_points=30,

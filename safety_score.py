@@ -395,10 +395,14 @@ def compute_binary_safety_map(safety_score, threshold=-20, dem_path=None, region
 
 # region = 'norcoast8'
 # dem_path = f'dem_maps/norcoast_b23_dem.tif'
-region = 'alameda_b21_x59y418'
+# region = 'alameda_b21_x59y418'
+region = 'norcoast_b23'
 dem_path = f'dem_maps/{region}_dem.tif'
 output_path = f'results/{region}_safety_score_norm.png'
+
+os.makedirs('results', exist_ok=True)
 print('initialized variables')
+
 dip_deg, var, tri, safety_score = compute_safety_map(region, dem_path)
 compute_binary_safety_map(safety_score, threshold=-20, dem_path=dem_path, region=region, type='norm')  # Pass dem_path
 compute_binary_safety_map(dip_deg, threshold=4, region=region, type='dip')
