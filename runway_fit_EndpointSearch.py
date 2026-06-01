@@ -60,13 +60,15 @@ class ParametricContour:
     """
     Represents a contour parametrized by arc length t ∈ [0, 1).
     """
-    def __init__(self, contour_points, landable_map=None):
+    def __init__(self, contour_points, contour_idx=None, landable_map=None):
         """
         Parameters:
         -----------
         contour_points : np.ndarray
             Contour points from cv2.findContours, shape (N, 1, 2) or (N, 2)
         """
+        # Assign contour idx to self
+        self.contour_idx = contour_idx
         # Reshape if needed
         if contour_points.ndim == 3:
             contour_points = contour_points.reshape(-1, 2)
@@ -157,148 +159,6 @@ class ParametricContour:
         
     #     return True
 
-    # def is_line_inside(self, t1, t2, debug_plot=False, save_path=None):
-    #     """
-    #     Check if the line segment from t1 to t2 stays inside the contour.
-    #     Uses rasterization approach for pixel-accurate checking.
-
-    #     Parameters:
-    #     -----------
-    #     t1, t2 : float
-    #         Parameter values for the two endpoints
-    #     debug_plot : bool
-    #         If True, create a visualization showing runway and contour rasters
-    #     save_path : str, optional
-    #         Path to save debug plot (e.g., 'debug_runway_check.png')
-
-    #     Returns:
-    #     --------
-    #     bool : True if line is fully inside, False otherwise
-    #     """
-    #     p1 = self.get_point(t1)
-    #     p2 = self.get_point(t2)
-        
-    #     # Get integer pixel coordinates
-    #     x1, y1 = int(round(p1[0])), int(round(p1[1]))
-    #     x2, y2 = int(round(p2[0])), int(round(p2[1]))
-        
-    #     # Determine raster size
-    #     if self.landable_map is not None:
-    #         height, width = self.landable_map.shape
-    #         runway_raster = np.zeros((height, width), dtype=np.uint8)
-    #         contour_mask = self.landable_map.astype(np.uint8)
-    #     else:
-    #         # Fallback: estimate size from contour bounds
-    #         x_max = int(np.ceil(self.points[:, 0].max())) + 10
-    #         y_max = int(np.ceil(self.points[:, 1].max())) + 10
-    #         runway_raster = np.zeros((y_max, x_max), dtype=np.uint8)
-            
-    #         # Create contour mask
-    #         contour_mask = np.zeros((y_max, x_max), dtype=np.uint8)
-    #         cv2.fillPoly(contour_mask, [self.contour_cv], 1)
-        
-    #     # Draw the runway line (1 pixel thick)
-    #     cv2.line(runway_raster, (x1, y1), (x2, y2), 1, thickness=1)
-        
-    #     # Count total runway pixels
-    #     num_runway_pixels = np.sum(runway_raster > 0)
-        
-    #     # Count runway pixels inside the contour (Logical AND)
-    #     num_inside_pixels = np.sum((runway_raster > 0) & (contour_mask > 0))
-        
-    #     # Determine validity
-    #     is_valid = (num_runway_pixels == num_inside_pixels) and (num_runway_pixels > 0)
-        
-    #     # ========================================================================
-    #     # DEBUG VISUALIZATION
-    #     # ========================================================================
-    #     if debug_plot:
-    #         import matplotlib.pyplot as plt
-            
-    #         # Get bounding box for zoomed view
-    #         runway_coords = np.argwhere(runway_raster > 0)
-    #         if len(runway_coords) > 0:
-    #             row_min = max(0, runway_coords[:, 0].min() - 20)
-    #             row_max = min(height, runway_coords[:, 0].max() + 20)
-    #             col_min = max(0, runway_coords[:, 1].min() - 20)
-    #             col_max = min(width, runway_coords[:, 1].max() + 20)
-    #         else:
-    #             row_min, row_max = 0, height
-    #             col_min, col_max = 0, width
-            
-    #         # Zoom into region of interest
-    #         contour_zoom = contour_mask[row_min:row_max, col_min:col_max]
-    #         runway_zoom = runway_raster[row_min:row_max, col_min:col_max]
-            
-    #         # Create RGB composite for visualization
-    #         # Red channel: contour pixels only (not runway)
-    #         # Green channel: runway AND contour (valid pixels)
-    #         # Blue channel: runway pixels only (not in contour - INVALID)
-    #         rgb_composite = np.zeros((row_max - row_min, col_max - col_min, 3), dtype=np.uint8)
-            
-    #         # Contour only (white/gray background)
-    #         rgb_composite[:, :, 0] = contour_zoom * 100  # Red channel
-    #         rgb_composite[:, :, 1] = contour_zoom * 100  # Green channel
-    #         rgb_composite[:, :, 2] = contour_zoom * 100  # Blue channel
-            
-    #         # Runway pixels that are INSIDE contour (GREEN)
-    #         inside_mask = (runway_zoom > 0) & (contour_zoom > 0)
-    #         rgb_composite[inside_mask, 0] = 0      # No red
-    #         rgb_composite[inside_mask, 1] = 255    # Full green
-    #         rgb_composite[inside_mask, 2] = 0      # No blue
-            
-    #         # Runway pixels that are OUTSIDE contour (RED - BAD!)
-    #         outside_mask = (runway_zoom > 0) & (contour_zoom == 0)
-    #         rgb_composite[outside_mask, 0] = 255   # Full red
-    #         rgb_composite[outside_mask, 1] = 0     # No green
-    #         rgb_composite[outside_mask, 2] = 0     # No blue
-            
-    #         # Create figure
-    #         fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-            
-    #         # Panel 1: Contour mask
-    #         axes[0].imshow(contour_zoom, cmap='gray')
-    #         axes[0].set_title('Contour Mask\n(Gray = Inside Contour)', fontsize=12, fontweight='bold')
-    #         axes[0].axis('off')
-            
-    #         # Panel 2: Runway raster
-    #         axes[1].imshow(runway_zoom, cmap='hot')
-    #         axes[1].set_title('Runway Raster\n(Yellow = Runway Pixels)', fontsize=12, fontweight='bold')
-    #         axes[1].axis('off')
-            
-    #         # Panel 3: Composite (with color legend)
-    #         axes[2].imshow(rgb_composite)
-    #         status_text = "VALID ✓" if is_valid else "INVALID ✗"
-    #         status_color = 'green' if is_valid else 'red'
-    #         axes[2].set_title(f'Runway ∧ Contour Check: {status_text}\n'
-    #                         f'Runway pixels: {num_runway_pixels}, Inside: {num_inside_pixels}',
-    #                         fontsize=12, fontweight='bold', color=status_color)
-    #         axes[2].axis('off')
-            
-    #         # Add color legend to composite panel
-    #         from matplotlib.patches import Patch
-    #         legend_elements = [
-    #             Patch(facecolor='gray', label='Contour interior'),
-    #             Patch(facecolor='green', label='Runway inside contour (VALID)'),
-    #             Patch(facecolor='red', label='Runway outside contour (INVALID)')
-    #         ]
-    #         axes[2].legend(handles=legend_elements, loc='upper right', fontsize=10)
-            
-    #         plt.tight_layout()
-            
-    #         # Save if path provided
-    #         if save_path:
-    #             plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    #             print(f"  Debug plot saved to: {save_path}")
-    #         else:
-    #             plt.show()
-            
-    #         plt.close()
-        
-    #     # ========================================================================
-        
-    #     return is_valid
-
     def is_line_inside(self, t1, t2, debug_plot=False, save_path=None):
         """
         Check if the line segment from t1 to t2 stays inside the contour.
@@ -385,26 +245,27 @@ class ParametricContour:
             rgb_composite[outside_mask, 2] = 0
             
             # Create figure
-            fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+            # fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+            fig, axes = plt.subplots(1, 1, figsize=(18, 6))
             
             # Panel 1: Contour mask
-            axes[0].imshow(local_contour, cmap='gray')
-            axes[0].set_title('Contour Mask (Local)\n(Gray = Inside Contour)', fontsize=12, fontweight='bold')
-            axes[0].axis('off')
+            # axes[0].imshow(local_contour, cmap='gray')
+            # axes[0].set_title('Contour Mask (Local)\n(Gray = Inside Contour)', fontsize=12, fontweight='bold')
+            # axes[0].axis('off')
             
             # Panel 2: Runway raster
-            axes[1].imshow(local_runway, cmap='hot')
-            axes[1].set_title('Runway Raster (Local)\n(Yellow = Runway Pixels)', fontsize=12, fontweight='bold')
-            axes[1].axis('off')
+            # axes[1].imshow(local_runway, cmap='hot')
+            # axes[1].set_title('Runway Raster (Local)\n(Yellow = Runway Pixels)', fontsize=12, fontweight='bold')
+            # axes[1].axis('off')
             
             # Panel 3: Composite
-            axes[2].imshow(rgb_composite)
+            axes.imshow(rgb_composite)
             status_text = "VALID ✓" if is_valid else "INVALID ✗"
             status_color = 'green' if is_valid else 'red'
-            axes[2].set_title(f'Runway ∧ Contour Check: {status_text}\n'
+            axes.set_title(f'Runway ∧ Contour Check: {status_text}\n'
                             f'Runway pixels: {num_runway_pixels}, Inside: {num_inside_pixels}',
                             fontsize=12, fontweight='bold', color=status_color)
-            axes[2].axis('off')
+            axes.axis('off')
             
             # Add color legend
             from matplotlib.patches import Patch
@@ -413,7 +274,7 @@ class ParametricContour:
                 Patch(facecolor='green', label='Runway inside contour (VALID)'),
                 Patch(facecolor='red', label='Runway outside contour (INVALID)')
             ]
-            axes[2].legend(handles=legend_elements, loc='upper right', fontsize=10)
+            axes.legend(handles=legend_elements, loc='upper right', fontsize=10)
             
             plt.tight_layout()
             
@@ -436,7 +297,123 @@ class ParametricContour:
         return np.linalg.norm(p2 - p1)
 
 
-def optimize_runway_for_contour(param_contour, min_length=400, pixel_size=1.0):
+# def optimize_runway_for_contour(param_contour, min_length=400, pixel_size=1.0):
+#     """
+#     Find the longest valid runway for a given parametric contour.
+    
+#     Parameters:
+#     -----------
+#     param_contour : ParametricContour
+#         Parametrized contour object
+#     min_length : float
+#         Minimum required runway length in pixels
+#     pixel_size : float
+#         Pixel size in meters (for converting to real-world length)
+    
+#     Returns:
+#     --------
+#     dict with:
+#         - t1, t2: optimal parameter values
+#         - length: runway length in meters
+#         - p1, p2: endpoint coordinates (row, col)
+#         - valid: whether a valid runway was found
+#     """
+#     print(f"  Optimizing runway (contour has {param_contour.n_points} points, perimeter={param_contour.total_length*pixel_size:.1f}m)...")
+    
+#     # Objective function: negative length (for minimization)
+#     def objective(x):
+#         t1, t2 = x
+        
+#         # Enforce t1 < t2 constraint via penalty
+#         if t2 <= t1:
+#             return 1e10
+        
+#         # DEBUGGING - RASTERIZED RUNWAY###############
+#         # Check if line is inside WITH DEBUG FOR FIRST FEW EVALUATIONS
+#         if not hasattr(objective, 'eval_count'):
+#             objective.eval_count = 0
+#         objective.eval_count += 1
+        
+#         # # Only plot the first 3 evaluations to see what's happening
+#         if objective.eval_count == 1 and param_contour.contour_idx == 11:
+#             save_path = f'debug/eval_{objective.eval_count}_{param_contour.contour_idx}.png'
+#             is_inside = param_contour.is_line_inside(t1, t2, debug_plot=True, save_path=save_path)
+#         else:
+#             is_inside = param_contour.is_line_inside(t1, t2, debug_plot=False)
+#         ###############################################
+
+#         # Check if line is inside
+#         # print('Checking if line is inside')
+#         if not is_inside:
+#         # if not param_contour.is_line_inside(t1, t2, debug_plot=False):  # Remove n_samples parameter
+#             return 1e10  # Large penalty for invalid lines
+        
+#         # Return negative length (we want to maximize length)
+#         length = param_contour.line_length(t1, t2)
+#         return -length
+    
+#     # Search space: 0 <= t1 < 1, 0 <= t2 < 1
+#     # We'll enforce t1 < t2 via penalty in objective
+#     bounds = [(0.0, 0.999), (0.001, 1.0)]
+    
+#     # Try differential evolution (global optimizer)
+#     # Note: differential_evolution doesn't support constraints, so we use penalty method
+#     print("    Running global optimization (differential_evolution)...")
+    
+#     try:
+#         result_de = differential_evolution(
+#             objective,
+#             bounds,
+#             maxiter=100,
+#             popsize=15,
+#             seed=42,
+#             workers=1,
+#             updating='deferred',
+#             polish=True
+#         )
+        
+#         if result_de.success and result_de.fun < 1e9:
+#             t1_opt, t2_opt = result_de.x
+            
+#             # Ensure t1 < t2 (swap if needed)
+#             if t1_opt > t2_opt:
+#                 t1_opt, t2_opt = t2_opt, t1_opt
+            
+#             length_pixels = -result_de.fun
+#             length_meters = length_pixels * pixel_size
+            
+#             p1 = param_contour.get_point(t1_opt)
+#             p2 = param_contour.get_point(t2_opt)
+            
+#             print(f"    ✓ Found runway: {length_meters:.1f}m (t1={t1_opt:.4f}, t2={t2_opt:.4f})")
+            
+#             return {
+#                 't1': t1_opt,
+#                 't2': t2_opt,
+#                 'length': length_meters,
+#                 'length_pixels': length_pixels,
+#                 'p1': p1,  # (col, row) in image coordinates
+#                 'p2': p2,
+#                 'valid': length_meters >= min_length,
+#                 'param_contour': param_contour
+#             }
+#         else:
+#             print(f"    ✗ Optimization failed (status: {result_de.message})")
+#             return {
+#                 'valid': False,
+#                 'length': 0,
+#                 'param_contour': param_contour
+#             }
+            
+#     except Exception as e:
+#         print(f"    ✗ Optimization error: {e}")
+#         return {
+#             'valid': False,
+#             'length': 0,
+#             'param_contour': param_contour
+#         }
+
+def optimize_runway_for_contour(param_contour, min_length=400, pixel_size=1.0, method='differential_evolution'):
     """
     Find the longest valid runway for a given parametric contour.
     
@@ -448,6 +425,8 @@ def optimize_runway_for_contour(param_contour, min_length=400, pixel_size=1.0):
         Minimum required runway length in pixels
     pixel_size : float
         Pixel size in meters (for converting to real-world length)
+    method : str
+        Optimization method: 'differential_evolution' or 'nelder_mead'
     
     Returns:
     --------
@@ -456,8 +435,10 @@ def optimize_runway_for_contour(param_contour, min_length=400, pixel_size=1.0):
         - length: runway length in meters
         - p1, p2: endpoint coordinates (row, col)
         - valid: whether a valid runway was found
+        - method: optimization method used
+        - iterations: number of function evaluations (if available)
     """
-    print(f"  Optimizing runway (contour has {param_contour.n_points} points, perimeter={param_contour.total_length*pixel_size:.1f}m)...")
+    print(f"  Optimizing runway (method={method}, contour has {param_contour.n_points} points, perimeter={param_contour.total_length*pixel_size:.1f}m)...")
     
     # Objective function: negative length (for minimization)
     def objective(x):
@@ -469,88 +450,117 @@ def optimize_runway_for_contour(param_contour, min_length=400, pixel_size=1.0):
         
         # DEBUGGING - RASTERIZED RUNWAY###############
         # Check if line is inside WITH DEBUG FOR FIRST FEW EVALUATIONS
-        # if not hasattr(objective, 'eval_count'):
-        #     objective.eval_count = 0
-        # objective.eval_count += 1
+        if not hasattr(objective, 'eval_count'):
+            objective.eval_count = 0
+        objective.eval_count += 1
         
         # # Only plot the first 3 evaluations to see what's happening
-        # if objective.eval_count <= -1:
-        #     save_path = f'debug/eval_{objective.eval_count}.png'
-        #     is_inside = param_contour.is_line_inside(t1, t2, debug_plot=True, save_path=save_path)
-        # else:
-        #     is_inside = param_contour.is_line_inside(t1, t2, debug_plot=False)
-        ###############################################
-
-        # Check if line is inside
-        # print('Checking if line is inside')
-        # if not param_contour.is_line_inside(t1, t2, n_samples=50):
-        if not param_contour.is_line_inside(t1, t2, debug_plot=False):  # Remove n_samples parameter
-            return 1e10  # Large penalty for invalid lines
+        if objective.eval_count == 1 and param_contour.contour_idx == 11:
+            debug_runway_validity = False
+        else:
+            debug_runway_validity = False
+        ##############################################
         
-        # Return negative length (we want to maximize length)
-        length = param_contour.line_length(t1, t2)
+        is_valid = param_contour.is_runway_inside(t1, t2, debug=debug_runway_validity)
+        
+        if not is_valid:
+            return 1e10  # Invalid - return huge penalty
+        
+        # Valid - return negative length (we want to maximize length)
+        length = param_contour.runway_length(t1, t2)
         return -length
     
-    # Search space: 0 <= t1 < 1, 0 <= t2 < 1
-    # We'll enforce t1 < t2 via penalty in objective
-    bounds = [(0.0, 0.999), (0.001, 1.0)]
+    # Bounds: search over t1 ∈ [0, 1), t2 ∈ [0, 1) with t2 > t1
+    bounds = [(0, 0.9999), (0, 0.9999)]
     
-    # Try differential evolution (global optimizer)
-    # Note: differential_evolution doesn't support constraints, so we use penalty method
-    print("    Running global optimization (differential_evolution)...")
-    
-    try:
-        result_de = differential_evolution(
+    if method == 'differential_evolution':
+        # Use differential evolution (population-based method)
+        result = differential_evolution(
             objective,
             bounds,
             maxiter=100,
             popsize=15,
+            strategy='best1bin',
             seed=42,
-            workers=1,
-            updating='deferred',
-            polish=True
+            polish=False,  # Don't use L-BFGS-B polish (keeps it pure DE)
+            workers=1
         )
         
-        if result_de.success and result_de.fun < 1e9:
-            t1_opt, t2_opt = result_de.x
-            
-            # Ensure t1 < t2 (swap if needed)
-            if t1_opt > t2_opt:
-                t1_opt, t2_opt = t2_opt, t1_opt
-            
-            length_pixels = -result_de.fun
-            length_meters = length_pixels * pixel_size
-            
-            p1 = param_contour.get_point(t1_opt)
-            p2 = param_contour.get_point(t2_opt)
-            
-            print(f"    ✓ Found runway: {length_meters:.1f}m (t1={t1_opt:.4f}, t2={t2_opt:.4f})")
-            
-            return {
-                't1': t1_opt,
-                't2': t2_opt,
-                'length': length_meters,
-                'length_pixels': length_pixels,
-                'p1': p1,  # (col, row) in image coordinates
-                'p2': p2,
-                'valid': length_meters >= min_length,
-                'param_contour': param_contour
+        t1_opt, t2_opt = result.x
+        n_iterations = result.nfev  # Number of function evaluations
+        
+    elif method == 'nelder_mead':
+        # Use Nelder-Mead (simplex method)
+        # Need a good initial guess - try center of the contour
+        # Start with points roughly 1/4 and 3/4 around the contour
+        x0 = [0.25, 0.75]
+        
+        result = minimize(
+            objective,
+            x0,
+            method='Nelder-Mead',
+            bounds=bounds,
+            options={
+                'maxiter': 500,
+                'xatol': 0.001,  # Tolerance in parameter space
+                'fatol': 1.0,    # Tolerance in function value (1 meter)
+                'adaptive': True
             }
-        else:
-            print(f"    ✗ Optimization failed (status: {result_de.message})")
-            return {
-                'valid': False,
-                'length': 0,
-                'param_contour': param_contour
-            }
-            
-    except Exception as e:
-        print(f"    ✗ Optimization error: {e}")
+        )
+        
+        t1_opt, t2_opt = result.x
+        n_iterations = result.nfev  # Number of function evaluations
+        
+    else:
+        raise ValueError(f"Unknown optimization method: {method}. Use 'differential_evolution' or 'nelder_mead'")
+    
+    # Check if optimization succeeded
+    if result.fun >= 1e9:  # If objective is still penalty value
+        print(f"  ✗ No valid runway found (all candidates violated constraints)")
         return {
             'valid': False,
+            't1': None,
+            't2': None,
             'length': 0,
-            'param_contour': param_contour
+            'p1': None,
+            'p2': None,
+            'method': method,
+            'iterations': n_iterations
         }
+    
+    # Get endpoint coordinates
+    p1 = param_contour.get_point(t1_opt)
+    p2 = param_contour.get_point(t2_opt)
+    
+    # Compute actual length in meters
+    length_meters = param_contour.runway_length(t1_opt, t2_opt) * pixel_size
+    
+    # Verify minimum length constraint
+    if length_meters < min_length:
+        print(f"  ✗ Runway too short: {length_meters:.1f}m < {min_length}m")
+        return {
+            'valid': False,
+            't1': t1_opt,
+            't2': t2_opt,
+            'length': length_meters,
+            'p1': p1,
+            'p2': p2,
+            'method': method,
+            'iterations': n_iterations
+        }
+    
+    print(f"  ✓ Found runway: {length_meters:.1f}m at t1={t1_opt:.3f}, t2={t2_opt:.3f} ({n_iterations} evals)")
+    
+    return {
+        'valid': True,
+        't1': t1_opt,
+        't2': t2_opt,
+        'length': length_meters,
+        'p1': p1,  # (col, row)
+        'p2': p2,  # (col, row)
+        'method': method,
+        'iterations': n_iterations
+    }
 
 
 def compute_gradient_along_line(elevation, transform, p1, p2, n_samples=100):
@@ -619,9 +629,223 @@ def compute_gradient_along_line(elevation, transform, p1, p2, n_samples=100):
     }
 
 
+# def find_optimal_runways_parametric(region='norcoast8',
+#                                      runway_length=400,
+#                                      runway_width=15):
+#     """
+#     Find optimal runway placements using parametric contour optimization.
+    
+#     Parameters:
+#     -----------
+#     region : str
+#         Region identifier
+#     runway_length : float
+#         Minimum runway length in meters
+#     runway_width : float
+#         Runway width in meters (for min rectangle filter)
+    
+#     Returns:
+#     --------
+#     dict with results
+#     """
+#     print("=" * 60)
+#     print(f"PARAMETRIC RUNWAY OPTIMIZATION FOR REGION: {region}")
+#     print("=" * 60)
+    
+#     # Load filtered landable areas
+#     filtered_path = f'results/{region}_filtered_landable_areas.tif'
+    
+#     if not os.path.exists(filtered_path):
+#         print(f"ERROR: {filtered_path} not found!")
+#         print("Please run overlay_osm_on_binary_map.py first.")
+#         return None
+    
+#     with rasterio.open(filtered_path) as src:
+#         landable_map = src.read(1).astype(bool)
+#         transform = src.transform
+#         profile = src.profile
+#         crs = src.crs
+    
+#     pixel_size = abs(transform.a)
+#     print(f"\nLoaded landable map: {landable_map.shape}")
+#     print(f"Pixel size: {pixel_size:.2f} meters")
+#     print(f"CRS: {crs}")
+    
+#     # Apply min rectangle filter
+#     print(f"\nApplying min rectangle filter ({runway_width}m × {runway_length}m)...")
+#     landable_filtered = filter_by_min_rectangle(landable_map,
+#                                                  min_width=runway_width/pixel_size,
+#                                                  min_height=runway_length/pixel_size)
+    
+#     # Get contours (external only, ignoring holes)
+#     binary_uint8 = landable_filtered.astype(np.uint8) * 255
+#     contours, hierarchy = cv2.findContours(binary_uint8, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    
+#     # Filter to get only external contours
+#     external_contours = []
+#     if hierarchy is not None:
+#         for i, contour in enumerate(contours):
+#             parent = hierarchy[0][i][3]
+#             if parent == -1:  # External contour
+#                 external_contours.append(contour)
+    
+#     num_contours = len(external_contours)
+#     print(f"\nFound {num_contours} valid contours after filtering")
+    
+#     if num_contours == 0:
+#         print("No valid contours found!")
+#         return None
+    
+#     # Load DEM for gradient computation
+#     dem_path = f'dem_maps/{region}_dem_utm.tif'
+#     if not os.path.exists(dem_path):
+#         dem_path = f'dem_maps/{region.replace("norcoast8", "norcoast_b23")}_dem_utm.tif'
+#         if not os.path.exists(dem_path):
+#             print(f"ERROR: DEM file not found at {dem_path}")
+#             return None
+    
+#     with rasterio.open(dem_path) as src:
+#         elevation = src.read(1, masked=True)
+    
+#     print(f"Loaded DEM: {elevation.shape}")
+#     print(f"Elevation range: {elevation.min():.1f} to {elevation.max():.1f} meters")
+    
+#     # Optimize runway for each contour
+#     print(f"\n{'=' * 60}")
+#     print("OPTIMIZING RUNWAYS FOR EACH CONTOUR")
+#     print(f"{'=' * 60}\n")
+    
+#     valid_runways = []
+#     best_per_contour = {}
+    
+#     for contour_idx, contour in enumerate(external_contours):
+#         print(f"Contour {contour_idx + 1}/{num_contours}:")
+        
+#         # Create parametric contour
+#         # Create parametric contour WITH landable_map
+#         param_contour = ParametricContour(contour, contour_idx=contour_idx,landable_map=landable_filtered)
+        
+#         # Optimize runway placement
+#         runway = optimize_runway_for_contour(
+#             param_contour,
+#             min_length=runway_length,
+#             pixel_size=pixel_size
+#         )
+        
+#         if not runway['valid']:
+#             print(f"  Skipping - no valid runway found\n")
+#             continue
+        
+#         # Compute gradient metrics
+#         # Convert from (col, row) to actual coordinates
+#         p1_col, p1_row = runway['p1']
+#         p2_col, p2_row = runway['p2']
+        
+#         gradient_metrics = compute_gradient_along_line(
+#             elevation, transform,
+#             runway['p1'], runway['p2'],
+#             n_samples=100
+#         )
+        
+#         if gradient_metrics is None:
+#             print(f"  Warning: Could not compute gradients\n")
+#             continue
+        
+#         # Store runway with all info
+#         runway_info = {
+#             'contour_idx': contour_idx,
+#             't1': runway['t1'],
+#             't2': runway['t2'],
+#             'length': runway['length'],
+#             'p1': runway['p1'],  # (col, row)
+#             'p2': runway['p2'],  # (col, row)
+#             'gradient_metrics': gradient_metrics,
+#             'param_contour': param_contour
+#         }
+        
+#         valid_runways.append(runway_info)
+#         best_per_contour[contour_idx] = runway_info
+        
+#         print(f"  Gradient: max={gradient_metrics['max_abs_gradient']:.2f}°, "
+#               f"mean={gradient_metrics['mean_abs_gradient']:.2f}°\n")
+    
+#     if len(valid_runways) == 0:
+#         print("No valid runways found!")
+#         return None
+    
+#     print(f"{'=' * 60}")
+#     print(f"FOUND {len(valid_runways)} VALID RUNWAYS")
+#     print(f"{'=' * 60}\n")
+    
+#     # Find overall best runway (minimum max gradient)
+#     best_runway = min(valid_runways, key=lambda r: r['gradient_metrics']['max_abs_gradient'])
+    
+#     print(f"Best runway:")
+#     print(f"  Contour: {best_runway['contour_idx'] + 1}")
+#     print(f"  Length: {best_runway['length']:.1f}m")
+#     print(f"  Max gradient: {best_runway['gradient_metrics']['max_abs_gradient']:.2f}°")
+#     print(f"  Mean gradient: {best_runway['gradient_metrics']['mean_abs_gradient']:.2f}°")
+    
+#     # CREATE OBJECTIVE FUNCTION CONTOUR PLOTS (NEW!)
+#     plot_objective_contours(
+#         region=region,
+#         best_per_contour=best_per_contour,
+#         pixel_size=pixel_size,
+#         resolution=100,  # Adjust for speed vs detail tradeoff
+#         min_runway_length=runway_length
+#     )
+
+#     # Create visualizations
+#     print(f"\n{'=' * 60}")
+#     print("CREATING VISUALIZATIONS")
+#     print(f"{'=' * 60}\n")
+    
+#     # create_visualizations(
+#     #     region=region,
+#     #     landable_map=landable_filtered,
+#     #     elevation=elevation,
+#     #     transform=transform,
+#     #     valid_runways=valid_runways,
+#     #     best_per_contour=best_per_contour,
+#     #     overall_best=best_runway,
+#     #     pixel_size=pixel_size
+#     # )
+#     # Visualizations: region, landable_map, elevation, transform, valid_runways, best_per_contour, overall_best, pixel_size
+
+#     create_runway_analysis_plots(
+#         region=region,
+#         landable_map=landable_filtered,
+#         elevation=elevation,
+#         transform=transform,
+#         best_per_contour=best_per_contour,
+#         best_runway=best_runway,
+#         pixel_size=pixel_size
+#     )
+#     # Runway Analysis Plots: region, landable_map, elevation, transform, best_per_contour, best_runway, pixel_size
+
+#     # Create individual contour plots
+#     plot_individual_contour_runways(
+#         region=region,
+#         valid_runways=valid_runways,
+#         elevation=elevation,
+#         transform=transform,
+#         landable_map=landable_filtered,
+#         pixel_size=pixel_size
+#     )
+    
+#     return {
+#         'valid_runways': valid_runways,
+#         'best_per_contour': best_per_contour,
+#         'best_runway': best_runway,
+#         'landable_map': landable_filtered,
+#         'elevation': elevation,
+#         'transform': transform
+#     }
+
 def find_optimal_runways_parametric(region='norcoast8',
                                      runway_length=400,
-                                     runway_width=15):
+                                     runway_width=15,
+                                     optimization_method='differential_evolution'):
     """
     Find optimal runway placements using parametric contour optimization.
     
@@ -633,13 +857,18 @@ def find_optimal_runways_parametric(region='norcoast8',
         Minimum runway length in meters
     runway_width : float
         Runway width in meters (for min rectangle filter)
+    optimization_method : str
+        Optimization algorithm: 'differential_evolution' or 'nelder_mead'
     
     Returns:
     --------
     dict with results
     """
+    import time  # Add at top of function
+    
     print("=" * 60)
     print(f"PARAMETRIC RUNWAY OPTIMIZATION FOR REGION: {region}")
+    print(f"OPTIMIZATION METHOD: {optimization_method.upper()}")
     print("=" * 60)
     
     # Load filtered landable areas
@@ -700,6 +929,9 @@ def find_optimal_runways_parametric(region='norcoast8',
     print(f"Loaded DEM: {elevation.shape}")
     print(f"Elevation range: {elevation.min():.1f} to {elevation.max():.1f} meters")
     
+    # START TIMING
+    optimization_start_time = time.time()
+    
     # Optimize runway for each contour
     print(f"\n{'=' * 60}")
     print("OPTIMIZING RUNWAYS FOR EACH CONTOUR")
@@ -707,27 +939,30 @@ def find_optimal_runways_parametric(region='norcoast8',
     
     valid_runways = []
     best_per_contour = {}
+    total_iterations = 0
     
     for contour_idx, contour in enumerate(external_contours):
         print(f"Contour {contour_idx + 1}/{num_contours}:")
         
-        # Create parametric contour
         # Create parametric contour WITH landable_map
-        param_contour = ParametricContour(contour, landable_map=landable_filtered)
+        param_contour = ParametricContour(contour, contour_idx=contour_idx, landable_map=landable_filtered)
         
         # Optimize runway placement
         runway = optimize_runway_for_contour(
             param_contour,
             min_length=runway_length,
-            pixel_size=pixel_size
+            pixel_size=pixel_size,
+            method=optimization_method
         )
         
         if not runway['valid']:
             print(f"  Skipping - no valid runway found\n")
             continue
         
+        # Track iterations
+        total_iterations += runway['iterations']
+        
         # Compute gradient metrics
-        # Convert from (col, row) to actual coordinates
         p1_col, p1_row = runway['p1']
         p2_col, p2_row = runway['p2']
         
@@ -750,7 +985,8 @@ def find_optimal_runways_parametric(region='norcoast8',
             'p1': runway['p1'],  # (col, row)
             'p2': runway['p2'],  # (col, row)
             'gradient_metrics': gradient_metrics,
-            'param_contour': param_contour
+            'param_contour': param_contour,
+            'iterations': runway['iterations']
         }
         
         valid_runways.append(runway_info)
@@ -759,12 +995,30 @@ def find_optimal_runways_parametric(region='norcoast8',
         print(f"  Gradient: max={gradient_metrics['max_abs_gradient']:.2f}°, "
               f"mean={gradient_metrics['mean_abs_gradient']:.2f}°\n")
     
+    # END TIMING
+    optimization_end_time = time.time()
+    total_time = optimization_end_time - optimization_start_time
+    
     if len(valid_runways) == 0:
         print("No valid runways found!")
         return None
     
     print(f"{'=' * 60}")
     print(f"FOUND {len(valid_runways)} VALID RUNWAYS")
+    print(f"{'=' * 60}\n")
+    
+    # Compute timing statistics
+    avg_time_per_contour = total_time / len(external_contours)
+    avg_iterations_per_contour = total_iterations / len(valid_runways)
+    
+    print(f"{'=' * 60}")
+    print(f"OPTIMIZATION PERFORMANCE")
+    print(f"{'=' * 60}")
+    print(f"Method: {optimization_method}")
+    print(f"Total time: {total_time:.2f} seconds ({total_time/60:.2f} minutes)")
+    print(f"Average time per contour: {avg_time_per_contour:.2f} seconds")
+    print(f"Total function evaluations: {total_iterations}")
+    print(f"Average evaluations per valid runway: {avg_iterations_per_contour:.1f}")
     print(f"{'=' * 60}\n")
     
     # Find overall best runway (minimum max gradient)
@@ -775,23 +1029,21 @@ def find_optimal_runways_parametric(region='norcoast8',
     print(f"  Length: {best_runway['length']:.1f}m")
     print(f"  Max gradient: {best_runway['gradient_metrics']['max_abs_gradient']:.2f}°")
     print(f"  Mean gradient: {best_runway['gradient_metrics']['mean_abs_gradient']:.2f}°")
+    print(f"  Function evaluations: {best_runway['iterations']}")
     
+# CREATE OBJECTIVE FUNCTION CONTOUR PLOTS (NEW!)
+    plot_objective_contours(
+        region=region,
+        best_per_contour=best_per_contour,
+        pixel_size=pixel_size,
+        resolution=100,  # Adjust for speed vs detail tradeoff
+        min_runway_length=runway_length
+    )
+
     # Create visualizations
     print(f"\n{'=' * 60}")
     print("CREATING VISUALIZATIONS")
     print(f"{'=' * 60}\n")
-    
-    # create_visualizations(
-    #     region=region,
-    #     landable_map=landable_filtered,
-    #     elevation=elevation,
-    #     transform=transform,
-    #     valid_runways=valid_runways,
-    #     best_per_contour=best_per_contour,
-    #     overall_best=best_runway,
-    #     pixel_size=pixel_size
-    # )
-    # Visualizations: region, landable_map, elevation, transform, valid_runways, best_per_contour, overall_best, pixel_size
 
     create_runway_analysis_plots(
         region=region,
@@ -815,14 +1067,16 @@ def find_optimal_runways_parametric(region='norcoast8',
     )
     
     return {
-        'valid_runways': valid_runways,
-        'best_per_contour': best_per_contour,
         'best_runway': best_runway,
+        'all_runways': valid_runways,
+        'best_per_contour': best_per_contour,
         'landable_map': landable_filtered,
-        'elevation': elevation,
-        'transform': transform
+        'transform': transform,
+        'optimization_method': optimization_method,
+        'total_time_seconds': total_time,
+        'total_iterations': total_iterations,
+        'avg_time_per_contour': avg_time_per_contour
     }
-
 
 def create_visualizations(region, landable_map, elevation, transform, 
                          valid_runways, best_per_contour, overall_best, pixel_size):
@@ -1430,6 +1684,129 @@ def save_all_best_runways_geotiff(region, best_per_contour, landable_map, transf
     
     print(f"Saved all best runways GeoTIFF to: {output_path}")
 
+def plot_objective_contours(region, best_per_contour, pixel_size, resolution=100, min_runway_length=400):
+    """
+    Plot objective function contours over (t1, t2) design space for each valid contour.
+    
+    Parameters:
+    -----------
+    region : str
+        Region identifier
+    best_per_contour : dict
+        Dictionary of best runway per contour
+    pixel_size : float
+        Pixel size in meters
+    resolution : int
+        Number of grid points along each axis (default 100)
+    min_runway_length : float
+        Minimum runway length to display on colorbar
+    """
+    import os
+    os.makedirs('results/objective_contours', exist_ok=True)
+    
+    print(f"\n{'=' * 60}")
+    print("CREATING OBJECTIVE FUNCTION CONTOUR PLOTS")
+    print(f"{'=' * 60}\n")
+    
+    # Determine global colorbar range from all optimal runway lengths
+    all_lengths = [runway['length'] for runway in best_per_contour.values()]
+    vmax = max(all_lengths)  # Longest optimal runway
+    
+    print(f"Colorbar range: {min_runway_length:.1f}m to {vmax:.1f}m")
+    print(f"Grid resolution: {resolution} × {resolution} = {resolution**2} evaluations per contour\n")
+    
+    # Create contour plots for each valid contour
+    for contour_idx, runway_data in best_per_contour.items():
+        print(f"Plotting contour {contour_idx + 1}/{len(best_per_contour)}...")
+        
+        param_contour = runway_data['param_contour']
+        
+        # Create grid over (t1, t2) space
+        t1_grid = np.linspace(0.0, 0.999, resolution)
+        t2_grid = np.linspace(0.001, 1.0, resolution)
+        T1, T2 = np.meshgrid(t1_grid, t2_grid)
+        
+        # Evaluate objective function at each grid point
+        obj_values = np.zeros_like(T1)
+        
+        for i in range(resolution):
+            if i % 20 == 0:
+                print(f"  Progress: {i}/{resolution} rows...")
+            for j in range(resolution):
+                t1 = T1[i, j]
+                t2 = T2[i, j]
+                
+                # Check constraints
+                if t2 <= t1:
+                    obj_values[i, j] = np.nan  # Invalid region (white)
+                else:
+                    # Check if line is inside
+                    if param_contour.is_line_inside(t1, t2, debug_plot=False):
+                        # Valid: compute runway length
+                        length = param_contour.line_length(t1, t2) * pixel_size
+                        obj_values[i, j] = length  # Positive length (we negate for display)
+                    else:
+                        obj_values[i, j] = np.nan  # Outside contour (white)
+        
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
+        # Define explicit contour levels using the global range
+        levels = np.linspace(min_runway_length, vmax, 21)  # 20 intervals
+        
+        # Plot contours with fixed colorbar range and explicit levels
+        contour_plot = ax.contourf(T1, T2, obj_values, 
+                                   levels=levels,  # Use explicit levels
+                                   cmap='viridis',
+                                   vmin=min_runway_length, 
+                                   vmax=vmax,
+                                   extend='neither')  # Don't extend beyond vmin/vmax
+        
+        # Mark invalid regions (NaN) as white
+        invalid_mask = np.isnan(obj_values)
+        ax.contourf(T1, T2, invalid_mask.astype(float), 
+                   levels=[0.5, 1.5], 
+                   colors='white', 
+                   alpha=1.0)
+        
+        # Mark the constraint boundary t1 = t2
+        ax.plot([0, 1], [0, 1], 'r--', linewidth=2, label='$t_1 = t_2$ boundary')
+        
+        # Mark the optimal solution
+        t1_opt = runway_data['t1']
+        t2_opt = runway_data['t2']
+        ax.plot(t1_opt, t2_opt, 'r*', markersize=20, 
+               markeredgecolor='white', markeredgewidth=2,
+               label=f'Optimal: $L$ = {runway_data["length"]:.1f}m')
+        
+        # Colorbar with explicit ticks at regular intervals
+        cbar = plt.colorbar(contour_plot, ax=ax, label='Runway Length (m)')
+        # Optional: set explicit colorbar ticks for consistency
+        # tick_spacing = 50  # Every 50 meters
+        # cbar_ticks = np.arange(min_runway_length, vmax + tick_spacing, tick_spacing)
+        # cbar.set_ticks(cbar_ticks)
+        
+        # Labels and title
+        ax.set_xlabel('$t_1$ (start parameter)', fontsize=12)
+        ax.set_ylabel('$t_2$ (end parameter)', fontsize=12)
+        ax.set_title(f'Objective Function: Contour {contour_idx + 1}\n'
+                    f'Optimal Length: {runway_data["length"]:.1f}m at '
+                    f'($t_1$={t1_opt:.4f}, $t_2$={t2_opt:.4f})',
+                    fontsize=13, fontweight='bold')
+        
+        ax.legend(loc='lower right', fontsize=10)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        
+        # Save
+        output_path = f'results/objective_contours/{region}_contour_{contour_idx+1:03d}_objective.png'
+        plt.savefig(output_path, dpi=200, bbox_inches='tight')
+        plt.close()
+        
+        print(f"  ✓ Saved to: {output_path}")
+    
+    print(f"\n✓ All objective contour plots saved to results/objective_contours/")
 
 if __name__ == "__main__":
     # Configuration
